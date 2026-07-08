@@ -1,0 +1,28 @@
+{
+  "cookieFile": "templates/cookieString.txt",
+  "defaults": {
+    "workshop": true,
+    "wiring": true,
+    "flags": ["--noCookieTest", "--ignoreSaveErrors"]
+  },
+  "vehicles": [
+    {
+      "id": "2016-transit",
+      "label": "2016 Ford Transit (V363)",
+      "paramsFile": "vehicles/2016-transit/params.json",
+      "outputDir": "manuals/2016-transit",
+      "status": "complete",
+      "notes": "Reference download — 2278 PDFs, ~844 MB"
+    },
+    {
+      "id": "YYYY-model-slug",
+      "label": "YYYY Model Name",
+      "paramsFile": "vehicles/YYYY-model-slug/params.json",
+      "outputDir": "manuals/YYYY-model-slug",
+      "status": "pending",
+      "workshop": true,
+      "wiring": true,
+      "notes": "Copy this block; set status to pending when params.json is ready"
+    }
+  ]
+}

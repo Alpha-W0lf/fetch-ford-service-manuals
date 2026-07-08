@@ -1,8 +1,15 @@
 import axios from "axios";
 
 import { ENV_USE_PROXY, USER_AGENT } from "./constants";
+import { attachHttpRetryInterceptor } from "./httpRetry";
+
+const REQUEST_TIMEOUT_MS = parseInt(
+  process.env.HTTP_REQUEST_TIMEOUT_MS || "90000",
+  10
+);
 
 const client = axios.create({
+  timeout: REQUEST_TIMEOUT_MS,
   headers: {
     "User-Agent": USER_AGENT,
     Accept: "text/html, */*; q=0.01",
@@ -24,5 +31,7 @@ const client = axios.create({
       }
     : false,
 });
+
+attachHttpRetryInterceptor(client);
 
 export default client;

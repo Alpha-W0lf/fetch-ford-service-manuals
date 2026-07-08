@@ -42,24 +42,30 @@ STALE_GAP_ATTEMPTS="${STALE_GAP_ATTEMPTS:-10}"
 export STALE_GAP_ATTEMPTS
 LOCK_DIR="$LOG_DIR/bulk-download.lock"
 BULK_LOCK_PID_FILE="$LOCK_DIR/pid"
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+
+bulk_lock_held_by_live_process() {
+  if pgrep -f 'scripts/bulk-download.sh' >/dev/null 2>&1; then
+    return 0
+  fi
   if [[ -f "$BULK_LOCK_PID_FILE" ]]; then
-    stale_pid=$(cat "$BULK_LOCK_PID_FILE" 2>/dev/null || true)
-    if [[ -n "$stale_pid" ]] && ! kill -0 "$stale_pid" 2>/dev/null; then
-      echo "Removing stale bulk lock (pid $stale_pid not running)"
-      rm -rf "$LOCK_DIR"
-      mkdir "$LOCK_DIR" || { echo "Could not acquire bulk lock"; exit 1; }
-    else
-      echo "Another bulk-download.sh is already running (lock: $LOCK_DIR)."
-      echo "Stop it first: pkill -f 'scripts/bulk-download.sh'"
-      exit 1
-    fi
-  else
+    local lock_pid
+    lock_pid=$(cat "$BULK_LOCK_PID_FILE" 2>/dev/null || true)
+    [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null && return 0
+  fi
+  return 1
+}
+
+if [[ -d "$LOCK_DIR" ]]; then
+  if bulk_lock_held_by_live_process; then
     echo "Another bulk-download.sh is already running (lock: $LOCK_DIR)."
     echo "Stop it first: pkill -f 'scripts/bulk-download.sh'"
     exit 1
   fi
+  echo "Removing stale bulk lock (no live bulk-download.sh)"
+  rm -rf "$LOCK_DIR"
 fi
+
+mkdir "$LOCK_DIR" || { echo "Could not acquire bulk lock"; exit 1; }
 echo "$$" >"$BULK_LOCK_PID_FILE"
 trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT
 

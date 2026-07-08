@@ -21,11 +21,15 @@ check_lock() {
   local holder="" pid=""
   [[ -f "$dir/holder" ]] && holder=$(cat "$dir/holder" 2>/dev/null)
   [[ -f "$dir/pid" ]] && pid=$(cat "$dir/pid" 2>/dev/null)
+  if [[ "$name" == "bulk-download" ]] && pgrep -f 'scripts/bulk-download.sh' >/dev/null 2>&1; then
+    echo "  $name: held (bulk-download.sh running, pid file=${pid:-?})"
+    return 0
+  fi
   if is_pid_alive "$pid"; then
     echo "  $name: held by ${holder:-?} (pid $pid)"
     return 0
   fi
-  echo "  $name: STALE (pid ${pid:-?} not running)"
+  echo "  $name: STALE (pid ${pid:-none}, no live holder)"
   if $FIX; then
     rm -rf "$dir"
     echo "    → removed stale $name"

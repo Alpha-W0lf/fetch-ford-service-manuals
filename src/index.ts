@@ -1,4 +1,5 @@
 import { writeFile, readFile, mkdir } from "fs/promises";
+import { fileExistsNonEmpty } from "./utils";
 import fetchTreeAndCover, {
   FetchTreeAndCoverParams,
 } from "./workshop/fetchTreeAndCover";
@@ -9,18 +10,23 @@ import saveEntireWiring from "./wiring/saveEntireWiring";
 import transformCookieString from "./transformCookieString";
 import { chromium, Page, BrowserContext } from "playwright";
 import { join } from "path";
-import saveEntireManual from "./workshop/saveEntireManual";
+import saveEntireManual, { SaveOptions } from "./workshop/saveEntireManual";
 import readConfig, { Config } from "./readConfig";
 import processCLIArgs, { CLIArgs } from "./processCLIArgs";
 import fetchPre2003AlphabeticalIndex from "./pre-2003/fetchAlphabeticalIndex";
 import saveEntirePre2003AlphabeticalIndex from "./pre-2003/saveEntireAlphabeticalIndex";
 import client from "./client";
+import { logHttpError } from "./logHttpError";
+import CaptureGaps from "./captureGaps";
 import {
   USER_AGENT,
   SEC_CH_UA,
   ENV_USE_PROXY,
   ENV_HEADLESS_BROWSER,
 } from "./constants";
+import { probeConnectorAccess, PtsAuthError } from "./ptsAuth";
+import { getConnectorProbeUrl } from "./connectorProbeUrl";
+import { pruneOrphanCdpTabs } from "./cdpConnectorPage";
 
 async function run({
   configPath,
@@ -30,9 +36,22 @@ async function run({
   doWiringDownload,
   doParamsValidation,
   doCookieTest,
+  connectorsOnly,
   ...restArgs
 }: CLIArgs) {
   const config = await readConfig(configPath, doParamsValidation);
+  const captureGaps = await CaptureGaps.load(outputPath);
+  let runWorkshop = doWorkshopDownload;
+  const runWiring = doWiringDownload || connectorsOnly;
+  if (connectorsOnly) {
+    runWorkshop = false;
+  }
+  const saveOptions: SaveOptions = {
+    saveHTML: restArgs.saveHTML ?? false,
+    ignoreSaveErrors: restArgs.ignoreSaveErrors ?? false,
+    outputRoot: outputPath,
+    captureGaps,
+  };
 
   // create output dir
   try {
@@ -45,10 +64,10 @@ async function run({
   }
 
   console.log("Processing cookies...");
-  const rawCookieString = (await readFile(cookiePath, { encoding: "utf-8" }))
+  let rawCookieString = (await readFile(cookiePath, { encoding: "utf-8" }))
     .trim()
     .replaceAll("\n", " ");
-  const { transformedCookies, processedCookieString } =
+  let { transformedCookies, processedCookieString } =
     transformCookieString(rawCookieString);
 
   // Add the cookie string to the Axios client
@@ -100,6 +119,19 @@ async function run({
 
   const context = await getBrowserContext();
 
+  const refreshSessionCookies = async (): Promise<void> => {
+    rawCookieString = (await readFile(cookiePath, { encoding: "utf-8" }))
+      .trim()
+      .replaceAll("\n", " ");
+    const refreshed = transformCookieString(rawCookieString);
+    transformedCookies = refreshed.transformedCookies;
+    processedCookieString = refreshed.processedCookieString;
+    client.defaults.headers.Cookie = processedCookieString;
+    await context.addCookies(transformedCookies);
+  };
+
+  saveOptions.refreshCookies = refreshSessionCookies;
+
   if (doCookieTest) {
     // no newline after write
     process.stdout.write("Attempting to log into PTS...");
@@ -110,9 +142,8 @@ async function run({
     );
     if (cookieTestingPage.url().includes("subscriptionExpired")) {
       console.error(
-        "Looks like your PTS subscription has expired. " +
-          "Re-subscribe to download manuals. If you just want to download a workshop manual, " +
-          "you may be able to do so without re-subscribing: run the script with --noCookieTest."
+        "Looks like your PTS subscription has expired, or cookies are stale. " +
+          "Log into PTS in Chrome and run: node scripts/export-cookies-from-chrome.js"
       );
       const expiryDate = await cookieTestingPage.evaluate(
         'document.querySelector("#pts-page > ul > li > b")?.innerText?.trim()'
@@ -130,15 +161,34 @@ async function run({
       process.exit(1);
     }
     console.log("ok!");
+    try {
+      const probeUrl = getConnectorProbeUrl(process.cwd());
+      await probeConnectorAccess(cookieTestingPage, probeUrl);
+      console.log("Connector access check: ok!");
+    } catch (e) {
+      if (e instanceof PtsAuthError) {
+        console.error(`Connector access check failed: ${e.message}`);
+        console.error(
+          "Connector PDFs require a live PTS portal session. " +
+            "Log into PTS in Chrome and run: node scripts/export-cookies-from-chrome.js"
+        );
+        process.exit(1);
+      }
+      throw e;
+    }
     await cookieTestingPage.close();
   }
 
-  if (doWorkshopDownload) {
+  if (connectorsOnly) {
+    console.log("Connectors-only mode — skipping workshop manual");
+  }
+
+  if (runWorkshop) {
     if (parseInt(config.workshop.modelYear) >= 2003) {
       const browserPage = await context.newPage();
       await browserPage.route("FordEcat.jpg", (route) => route.abort());
 
-      await modernWorkshop(config, outputPath, browserPage, restArgs);
+      await modernWorkshop(config, outputPath, browserPage, saveOptions);
     } else {
       console.log(
         "Downloading pre-2003 workshop manual, please see README for details..."
@@ -162,7 +212,7 @@ async function run({
         outputPath,
         rawCookieString,
         browserPage,
-        restArgs
+        saveOptions
       );
     }
 
@@ -171,10 +221,14 @@ async function run({
     console.log("Skipping workshop manual download.");
   }
 
-  if (doWiringDownload) {
-    console.log("Saving wiring manual...");
+  if (runWiring) {
+    if (connectorsOnly) {
+      console.log("Connectors-only mode — skipping wiring diagram pages");
+    } else {
+      console.log("Saving wiring manual...");
+    }
 
-    await context.addCookies(transformedCookies);
+    await refreshSessionCookies();
     const wiringPage = await context.newPage();
 
     const wiringParams: WiringFetchParams = {
@@ -185,17 +239,35 @@ async function run({
       languageCode: config.workshop.languageOdysseyCode,
     };
 
-    console.log("Fetching wiring table of contents...");
-
-    const wiringToC = await fetchTableOfContents(wiringParams);
+    const wiringTocPath = join(outputPath, "Wiring", "toc.json");
+    let wiringToC;
+    if (await fileExistsNonEmpty(wiringTocPath)) {
+      console.log("Resuming wiring — using existing Wiring/toc.json");
+      wiringToC = JSON.parse(await readFile(wiringTocPath, { encoding: "utf-8" }));
+    } else if (connectorsOnly) {
+      console.error(
+        "Connectors-only mode requires existing Wiring/toc.json. Run a full wiring download first."
+      );
+      process.exit(1);
+    } else {
+      console.log("Fetching wiring table of contents...");
+      wiringToC = await fetchTableOfContents(wiringParams);
+    }
 
     await saveEntireWiring(
       outputPath,
       config.workshop,
       wiringParams,
       wiringToC,
-      wiringPage
+      wiringPage,
+      restArgs.ignoreSaveErrors,
+      captureGaps,
+      {
+        connectorsOnly,
+        refreshCookies: refreshSessionCookies,
+      }
     );
+    await pruneOrphanCdpTabs().catch(() => undefined);
   } else {
     console.log("Skipping wiring manual download.");
   }
@@ -203,28 +275,54 @@ async function run({
   console.log("Manual downloaded, closing browser");
   await context.close();
   await browser.close();
+
+  const pruned = await captureGaps.pruneResolved();
+  if (pruned > 0) {
+    console.log(`Pruned ${pruned} resolved gap(s) from capture-gaps.json`);
+  }
+  await captureGaps.save();
+  if (captureGaps.hasBlockingGaps()) {
+    console.log(`Capture incomplete: ${captureGaps.summary()}`);
+    console.log(`See ${join(outputPath, "capture-gaps.json")} for details`);
+  } else if (captureGaps.hasGaps()) {
+    console.log(
+      `Capture complete for queue purposes (${captureGaps.blockingCount()} blocking gaps); informational gaps may remain in capture-gaps.json`
+    );
+  } else {
+    console.log("Capture complete: no gaps recorded");
+  }
 }
 
 async function modernWorkshop(
   config: Config,
   outputPath: string,
   browserPage: Page,
-  restArgs: any
+  saveOptions: SaveOptions
 ) {
-  console.log("Downloading and processing table of contents...");
+  const tocPath = join(outputPath, "toc.json");
+  const coverHtmlPath = join(outputPath, "cover.html");
+  const workshopConfig = config.workshop as FetchTreeAndCoverParams;
   const tocFetchParams: FetchTreeAndCoverParams = {
-    ...config.workshop,
-    CategoryDescription: "GSIXML",
-    category: "33",
+    ...workshopConfig,
+    CategoryDescription:
+      workshopConfig.CategoryDescription ?? "GSIXML",
+    category: workshopConfig.category ?? "33",
   };
-  const { tableOfContents, pageHTML } = await fetchTreeAndCover(tocFetchParams);
 
-  await writeFile(
-    join(outputPath, "toc.json"),
-    JSON.stringify(tableOfContents, null, 2)
-  );
-  const coverPath = join(outputPath, "cover");
-  await writeFile(coverPath + ".html", pageHTML);
+  let tableOfContents: any;
+  if (
+    (await fileExistsNonEmpty(tocPath)) &&
+    (await fileExistsNonEmpty(coverHtmlPath))
+  ) {
+    console.log("Resuming workshop — using existing toc.json and cover.html");
+    tableOfContents = JSON.parse(await readFile(tocPath, { encoding: "utf-8" }));
+  } else {
+    console.log("Downloading and processing table of contents...");
+    const fetched = await fetchTreeAndCover(tocFetchParams);
+    tableOfContents = fetched.tableOfContents;
+    await writeFile(tocPath, JSON.stringify(tableOfContents, null, 2));
+    await writeFile(coverHtmlPath, fetched.pageHTML);
+  }
 
   console.log("Saving manual files...");
   await saveEntireManual(
@@ -232,7 +330,7 @@ async function modernWorkshop(
     tableOfContents,
     config.workshop,
     browserPage,
-    restArgs
+    saveOptions
   );
 }
 
@@ -241,7 +339,7 @@ async function pre2003Workshop(
   outputPath: string,
   rawCookieString: string,
   browserPage: Page,
-  restArgs: any
+  saveOptions: SaveOptions
 ) {
   console.log("Downloading and processing alphabetical index...");
   const { documentList, pageHTML, modifiedHTML } =
@@ -268,9 +366,18 @@ async function pre2003Workshop(
     outputPath,
     documentList,
     browserPage,
-    restArgs
+    saveOptions
   );
 }
 
 const args = processCLIArgs();
-run(args).then(() => process.exit(0));
+run(args)
+  .then(() => process.exit(0))
+  .catch((err) => {
+    if (err instanceof PtsAuthError) {
+      console.error(`PTS auth failure: ${err.message}`);
+      process.exit(2);
+    }
+    logHttpError(err, "Download failed");
+    process.exit(1);
+  });

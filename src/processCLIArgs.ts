@@ -9,6 +9,7 @@ export interface CLIArgs {
   doWiringDownload: boolean;
   doParamsValidation: boolean;
   doCookieTest: boolean;
+  connectorsOnly: boolean;
   saveHTML: boolean;
   ignoreSaveErrors: boolean;
 }
@@ -37,6 +38,11 @@ export default function processCLIArgs(): CLIArgs {
     },
     {
       name: "noWiring",
+      type: Boolean,
+      default: false,
+    },
+    {
+      name: "connectorsOnly",
       type: Boolean,
       default: false,
     },
@@ -104,6 +110,12 @@ export default function processCLIArgs(): CLIArgs {
           description: "Skip downloading the Wiring Diagrams.",
         },
         {
+          name: "connectorsOnly",
+          typeLabel: " ",
+          description:
+            "Skip wiring diagram pages; only download connector face PDFs (requires Wiring/toc.json). Implies wiring download.",
+        },
+        {
           name: "noParamsValidation",
           typeLabel: " ",
           description: "Skip validating the configFile.",
@@ -155,9 +167,10 @@ export default function processCLIArgs(): CLIArgs {
       outputPath: options.outputPath,
       cookiePath: options.cookieString,
       doWorkshopDownload: !options.noWorkshop,
-      doWiringDownload: !options.noWiring,
+      doWiringDownload: !options.noWiring || !!options.connectorsOnly,
       doParamsValidation: !options.noParamsValidation,
       doCookieTest: !options.noCookieTest,
+      connectorsOnly: !!options.connectorsOnly,
       saveHTML: !!options.saveHTML,
       ignoreSaveErrors: !!options.ignoreSaveErrors,
     };

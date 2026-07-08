@@ -32,8 +32,6 @@ export default async function fetchTreeAndCover(
 // recursively ignore <i> elements with only a single <i> element inside
 function ignoreital(el: Element): HTMLCollection {
   if (!el.children.length) {
-    console.log("children");
-
     return el.parentElement!.children;
   }
 

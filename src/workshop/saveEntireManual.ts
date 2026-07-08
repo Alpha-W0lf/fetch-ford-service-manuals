@@ -1,12 +1,54 @@
 import { mkdir, writeFile } from "fs/promises";
-import { join, resolve } from "path";
+import { join, relative } from "path";
 import fetchManualPage, { FetchManualPageParams } from "./fetchManualPage";
 import client from "../client";
 import { Page } from "playwright";
 import { CLIArgs } from "../processCLIArgs";
-import saveStream, { sanitizeName } from "../utils";
+import saveStream, { fileExistsNonEmpty, sanitizeName } from "../utils";
+import { fileExistsAtRelPath, resolveExistingSubdir } from "../pathResolve";
+import CaptureGaps, {
+  gapReasonFromError,
+  workshopGapId,
+} from "../captureGaps";
+import { renderWorkshopPageToPdf } from "../renderHtmlToPdf";
 
-export type SaveOptions = Pick<CLIArgs, "saveHTML" | "ignoreSaveErrors">;
+export type SaveOptions = Pick<CLIArgs, "saveHTML" | "ignoreSaveErrors"> & {
+  outputRoot: string;
+  captureGaps?: CaptureGaps;
+  refreshCookies?: () => Promise<void>;
+  /** @internal consecutive auth-class failures (403, etc.) this run */
+  authFailureStreak?: number;
+};
+
+const AUTH_REFRESH_THRESHOLD = parseInt(
+  process.env.WORKSHOP_AUTH_REFRESH_THRESHOLD || "5",
+  10
+);
+
+async function maybeRefreshCookiesOnAuthStreak(
+  options: SaveOptions,
+  reason: string
+): Promise<void> {
+  if (reason !== "auth") {
+    options.authFailureStreak = 0;
+    return;
+  }
+  options.authFailureStreak = (options.authFailureStreak || 0) + 1;
+  if (
+    options.authFailureStreak >= AUTH_REFRESH_THRESHOLD &&
+    options.refreshCookies
+  ) {
+    console.log(
+      `[auth] ${options.authFailureStreak} consecutive auth failures — refreshing cookies from disk...`
+    );
+    await options.refreshCookies();
+    options.authFailureStreak = 0;
+  }
+}
+
+function relFromRoot(outputRoot: string, absolutePath: string): string {
+  return relative(outputRoot, absolutePath).replace(/\\/g, "/");
+}
 
 export default async function saveEntireManual(
   path: string,
@@ -21,8 +63,19 @@ export default async function saveEntireManual(
     const [name, docID] = exploded[i];
 
     if (typeof docID === "string" && docID.length > 0) {
-      // download and save document
       if (docID.startsWith("http") && docID.includes(".pdf")) {
+        const filePath = join(
+          path,
+          `/${docID.slice(docID.lastIndexOf("/"))}`
+        );
+        const gapId = workshopGapId(`url:${docID}`);
+        const relPath = relFromRoot(options.outputRoot, filePath);
+        if (await fileExistsAtRelPath(options.outputRoot, relPath)) {
+          await options.captureGaps?.resolve(gapId);
+          console.log(`Skipping existing manual PDF ${name}`);
+          continue;
+        }
+
         console.log(`Downloading manual PDF ${name} ${docID}`);
 
         try {
@@ -31,17 +84,54 @@ export default async function saveEntireManual(
             responseType: "stream",
           });
 
-          const filePath = join(
-            path,
-            `/${docID.slice(docID.lastIndexOf("/"))}`
-          );
           await saveStream(pdfReq.data, filePath);
+          await options.captureGaps?.resolve(gapId);
+          options.authFailureStreak = 0;
         } catch (e) {
           console.error(`Error saving file ${name} with url ${docID}: ${e}`);
+          if (options.ignoreSaveErrors && options.captureGaps) {
+            const reason = gapReasonFromError(e);
+            await maybeRefreshCookiesOnAuthStreak(options, reason);
+            await options.captureGaps.record({
+              id: gapId,
+              section: "workshop",
+              name,
+              docId: docID,
+              relativePath: relFromRoot(options.outputRoot, filePath),
+              expectedFile: relFromRoot(options.outputRoot, filePath),
+              reason: gapReasonFromError(e),
+              error: String(e),
+            });
+          }
         }
         continue;
       } else if (docID.includes("/")) {
         console.error(`Skipping relative path ${docID} for name ${name}`);
+        continue;
+      }
+
+      let filename = sanitizeName(name);
+      if (filename.length > 200) {
+        filename =
+          filename.slice(0, 254 - 19 - docID.length) + ` (${docID} truncated)`;
+        console.log(`-> Truncating filename, learn more in the README`);
+      }
+
+      const pdfPath = join(path, `/${filename}.pdf`);
+      const htmlPath = join(path, `/${filename}.html`);
+      const gapId = workshopGapId(docID);
+
+      const relPdf = relFromRoot(options.outputRoot, pdfPath);
+      if (
+        (await fileExistsAtRelPath(options.outputRoot, relPdf)) &&
+        (!options.saveHTML ||
+          (await fileExistsAtRelPath(
+            options.outputRoot,
+            relFromRoot(options.outputRoot, htmlPath)
+          )))
+      ) {
+        await options.captureGaps?.resolve(gapId);
+        console.log(`Skipping existing manual page ${name} (docID: ${docID})`);
         continue;
       }
 
@@ -50,19 +140,6 @@ export default async function saveEntireManual(
           options.saveHTML ? "HTML, " : ""
         }PDF (docID: ${docID})`
       );
-      let filename = sanitizeName(name);
-      // 255 is the max filename length on most filesystems, but 200 should be enough regardless
-      if (filename.length > 200) {
-        filename =
-          // 255 = max filename length, 18 = length of " ( truncated).html",
-          // docID.length = length of docID
-
-          // including the docID in the filename to prevent collisions as names may differ
-          // at the end rather than in the first ~255 characters
-          filename.slice(0, 254 - 19 - docID.length) + ` (${docID} truncated)`;
-
-        console.log(`-> Truncating filename, learn more in the README`);
-      }
 
       try {
         const pageHTML = await fetchManualPage({
@@ -70,26 +147,38 @@ export default async function saveEntireManual(
           searchNumber: docID,
         });
 
-        if (options.saveHTML) {
-          const htmlPath = resolve(join(path, `/${filename}.html`));
+        if (options.saveHTML && !(await fileExistsNonEmpty(htmlPath))) {
           await writeFile(htmlPath, pageHTML);
         }
 
-        await browserPage.setContent(pageHTML, { waitUntil: "load" });
-        // removes this little color-coded thing that doesn't load properly
-        // in Playwright, just says "Workshop Manual Graphics Training"...
-        await browserPage.evaluate(
-          'document.querySelectorAll("body > div > table > tbody > tr > td:nth-child(2)").forEach(e => e.remove())'
-        );
-        await browserPage.pdf({
-          path: join(path, `/${filename}.pdf`),
-        });
+        if (await fileExistsAtRelPath(options.outputRoot, relPdf)) {
+          await options.captureGaps?.resolve(gapId);
+          continue;
+        }
+
+        await renderWorkshopPageToPdf(browserPage, pageHTML, pdfPath);
+        await options.captureGaps?.resolve(gapId);
+        options.authFailureStreak = 0;
       } catch (e) {
         if (options.ignoreSaveErrors) {
           console.error(
             `Continuing to download after error with ${name} (docID ${docID}):`,
             e
           );
+          if (options.captureGaps) {
+            const reason = gapReasonFromError(e);
+            await maybeRefreshCookiesOnAuthStreak(options, reason);
+            await options.captureGaps.record({
+              id: gapId,
+              section: "workshop",
+              name,
+              docId: docID,
+              relativePath: relFromRoot(options.outputRoot, pdfPath),
+              expectedFile: relFromRoot(options.outputRoot, pdfPath),
+              reason: gapReasonFromError(e),
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
         } else {
           console.error(
             `Encountered an error downloading ${name} (docID ${docID})`
@@ -98,8 +187,7 @@ export default async function saveEntireManual(
         }
       }
     } else {
-      // create folder and traverse
-      const newPath = join(path, sanitizeName(name));
+      const newPath = await resolveExistingSubdir(path, name);
 
       try {
         await mkdir(newPath, { recursive: true });
@@ -121,14 +209,3 @@ export default async function saveEntireManual(
     }
   }
 }
-
-// export async function saveURLAsPDF(
-//   htmlPath: string,
-//   pdfPath: string,
-//   page: Page
-// ): Promise<void> {
-//   await page.goto(`file://${htmlPath}`, { waitUntil: "load" });
-//   await page.pdf({
-//     path: pdfPath,
-//   });
-// }

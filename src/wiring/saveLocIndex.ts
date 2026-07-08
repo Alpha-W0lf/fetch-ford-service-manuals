@@ -7,6 +7,7 @@ import fetchLocIndexComponentType, {
 } from "./fetchLocIndexComponentType";
 import { join } from "path";
 import { createWriteStream } from "fs";
+import { fileExistsNonEmpty } from "../utils";
 
 const csvHeader = [
   // From
@@ -31,6 +32,10 @@ export async function saveLocIndex(
   );
 
   const csvPath = join(folderPath, "Connectors.csv");
+  if (await fileExistsNonEmpty(csvPath)) {
+    console.log("Skipping existing Connectors.csv");
+    return;
+  }
   const writeStream = createWriteStream(csvPath, { encoding: "utf-8" });
   writeStream.write(csvHeader + "\n");
 

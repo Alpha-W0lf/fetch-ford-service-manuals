@@ -15,9 +15,14 @@ Run bulk and param capture **in parallel**. They share PTS Chrome only briefly.
 Health check before start or after a crash:
 
 ```bash
-./scripts/pipeline-health.sh
+./scripts/queue-status.sh --health
 ./scripts/pipeline-health.sh --fix-locks   # remove stale locks only
 ```
+
+During long bulk runs (automatic when workers are idle):
+
+- `RECONCILE_EVERY_MIN=60` — periodic `reconcile-queue.js` (default)
+- `PDF_AUDIT_EVERY_MIN=120` — random PDF spot-check via `audit-pdf-integrity.js --sample 50`
 
 ## Per-vehicle download phases (bulk)
 
@@ -59,6 +64,19 @@ Headless workshop/wiring **do not** hold the lock. Bulk connector jobs wait (up 
 Stale locks (dead PID) are removed automatically by `scripts/cdp-chrome-lock.js`.
 
 **Do not** manually delete the lock unless you have confirmed no `capture-params` or connector job is running.
+
+## Periodic maintenance (bulk loop)
+
+When no workers are running, `bulk-download.sh` automatically:
+
+| Interval | Env | Action |
+|----------|-----|--------|
+| 60 min | `RECONCILE_EVERY_MIN` | `reconcile-queue.js` — self-heal failed/interrupted statuses |
+| 120 min | `PDF_AUDIT_EVERY_MIN` | `audit-pdf-integrity.js --sample 50` — spot-check corrupt PDFs |
+
+Logs: `logs/reconcile-periodic.log`, `logs/pdf-integrity-spotcheck.log`
+
+Quick status: `./scripts/queue-status.sh --health`
 
 ## Verification layers
 

@@ -17,6 +17,11 @@
 #   CIRCUIT_BREAKER_THRESHOLD — consecutive auth failures before backoff (default: 2)
 #   CIRCUIT_BREAKER_BACKOFF_SEC — pause new jobs after auth failures (default: 600)
 #   STALE_GAP_ATTEMPTS — deprioritize incomplete vehicles when every gap has this many failed attempts (default: 10)
+#   RECONCILE_EVERY_MIN — re-run reconcile-queue when idle (default: 60; 0=startup only)
+#   PDF_AUDIT_EVERY_MIN — spot-check PDF integrity when idle (default: 120; 0=disable)
+#   PDF_AUDIT_SAMPLE — PDFs to sample per spot-check (default: 50)   RECONCILE_EVERY_MIN — re-run reconcile-queue when no workers active (default: 60; 0=disable)
+#   PDF_AUDIT_EVERY_MIN — spot-check PDF integrity when idle (default: 120; 0=disable)
+#   PDF_AUDIT_SAMPLE — random PDFs per spot-check (default: 50)
 #
 # Queue statuses:
 #   pending       — ready to download (params.json exists)
@@ -39,6 +44,9 @@ IDLE_EXIT_MIN="${IDLE_EXIT_MIN:-0}"
 COOKIE_REFRESH_MIN="${COOKIE_REFRESH_MIN:-180}"
 CIRCUIT_BREAKER_THRESHOLD="${CIRCUIT_BREAKER_THRESHOLD:-2}"
 STALE_GAP_ATTEMPTS="${STALE_GAP_ATTEMPTS:-10}"
+RECONCILE_EVERY_MIN="${RECONCILE_EVERY_MIN:-60}"
+PDF_AUDIT_EVERY_MIN="${PDF_AUDIT_EVERY_MIN:-120}"
+PDF_AUDIT_SAMPLE="${PDF_AUDIT_SAMPLE:-50}"
 export STALE_GAP_ATTEMPTS
 LOCK_DIR="$LOG_DIR/bulk-download.lock"
 BULK_LOCK_PID_FILE="$LOCK_DIR/pid"
@@ -72,6 +80,10 @@ trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT
 RECENT_403_FILE="$LOG_DIR/recent-403-stamps.txt"
 BACKOFF_UNTIL=0
 LAST_COOKIE_REFRESH=0
+LAST_RECONCILE=$(date +%s)
+LAST_PDF_AUDIT=$(date +%s)
+LAST_RECONCILE=0
+LAST_PDF_AUDIT=0
 
 clear_auth_failure_stamps() {
   rm -f "$RECENT_403_FILE"
@@ -105,6 +117,39 @@ maybe_refresh_cookies() {
       connector_preflight || true
     fi
   fi
+}
+
+# Reconcile queue with disk when no workers are running (avoids vehicles.json races).
+maybe_reconcile_queue() {
+  [[ "$RECONCILE_EVERY_MIN" == "0" ]] && return 0
+  local now=$(date +%s)
+  local due=$((LAST_RECONCILE + RECONCILE_EVERY_MIN * 60))
+  [[ $LAST_RECONCILE -ne 0 && $now -lt $due ]] && return 0
+  echo "[reconcile] Periodic queue reconcile (every ${RECONCILE_EVERY_MIN}min, workers idle)..."
+  node "$ROOT/scripts/reconcile-queue.js" >>"$LOG_DIR/reconcile-periodic.log" 2>&1 || true
+  LAST_RECONCILE=$now
+}
+
+maybe_pdf_spot_check() {
+  [[ "$PDF_AUDIT_EVERY_MIN" == "0" ]] && return 0
+  local now=$(date +%s)
+  local due=$((LAST_PDF_AUDIT + PDF_AUDIT_EVERY_MIN * 60))
+  [[ $LAST_PDF_AUDIT -ne 0 && $now -lt $due ]] && return 0
+  echo "[audit] PDF integrity spot-check (sample ${PDF_AUDIT_SAMPLE})..."
+  if node "$ROOT/scripts/audit-pdf-integrity.js" --sample "$PDF_AUDIT_SAMPLE" \
+    >>"$LOG_DIR/pdf-integrity-spotcheck.log" 2>&1; then
+    echo "[audit] PDF spot-check OK — see logs/pdf-integrity-spotcheck.log"
+  else
+    echo "[audit] PDF spot-check found issues — see logs/pdf-integrity-spotcheck.log"
+  fi
+  LAST_PDF_AUDIT=$now
+}
+
+maybe_periodic_maintenance() {
+  local running="${1:-0}"
+  [[ "$running" -ne 0 ]] && return 0
+  maybe_reconcile_queue
+  maybe_pdf_spot_check
 }
 
 record_auth_failure() {
@@ -187,6 +232,7 @@ echo "[reconcile] backfill-capture-gaps (may take a few minutes on large fleet).
 node "$ROOT/scripts/backfill-capture-gaps.js" 2>/dev/null || true
 echo "[reconcile] reconcile-queue..."
 node "$ROOT/scripts/reconcile-queue.js"
+LAST_RECONCILE=$(date +%s)
 refresh_cookies || true
 connector_preflight || {
   echo "WARNING: Connector preflight failed — new jobs may fail until cookies are refreshed."
@@ -433,6 +479,7 @@ while true; do
   reap_workers
   maybe_refresh_cookies
   running=${#IN_FLIGHT_PIDS[@]}
+  maybe_periodic_maintenance "$running"
   if circuit_breaker_active; then
     if [[ $running -eq 0 ]] && refresh_cookies; then
       echo "[circuit] Cookies refreshed with no workers — resuming job queue"

@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # Show download queue progress.
 # Usage: ./scripts/queue-status.sh [queue.json]
+#        ./scripts/queue-status.sh --health
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+if [[ "${1:-}" == "--health" ]]; then
+  exec "$ROOT/scripts/pipeline-health.sh"
+fi
+
 QUEUE="${1:-$ROOT/templates/vehicles.json}"
 
 node - "$QUEUE" <<'NODE'

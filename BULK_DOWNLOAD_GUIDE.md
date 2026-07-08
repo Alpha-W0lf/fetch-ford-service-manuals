@@ -203,6 +203,7 @@ Copy query params into `wiring`:
 | `Failed to log in` / connector failures | Refresh `cookieString.txt` from dealerconnection.com `/` |
 | `ERR_HTTP2_PROTOCOL_ERROR` | Use `--noCookieTest`; ensure cookies fresh |
 | Wrong/missing workshop sections | Check `category` / `CategoryDescription` in params |
+| `subscriptionExpired` in browser / cookie test | Usually **stale PTS session**, not ended subscription. Re-login: `node scripts/open-pts-login-tabs.js` → open PTS from My Subscriptions → `node scripts/export-cookies-from-chrome.js` |
 | Run stopped when lid closed | Use `./scripts/start-bulk-in-terminal.sh` (`caffeinate` included); verify with `./scripts/queue-status.sh --health` |
 | Orchestrator died after ~2 min | Started from Cursor — use Terminal.app instead |
 | Stale bulk lock | `./scripts/pipeline-health.sh --fix-locks` then restart via Terminal |

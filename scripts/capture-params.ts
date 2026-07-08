@@ -29,6 +29,7 @@ import { chromium, Page, Frame, Request, Browser, BrowserContext } from "playwri
 import qs from "qs";
 import transformCookieString from "../src/transformCookieString";
 import { USER_AGENT, SEC_CH_UA } from "../src/constants";
+import { ensurePtsSessionHealthy, recoverPtsPageSession } from "../src/ptsAuth";
 
 const ROOT = join(__dirname, "..");
 const QUEUE_PATH = join(ROOT, "templates/vehicles.json");
@@ -218,12 +219,14 @@ async function getPtsPage(context: BrowserContext): Promise<Page> {
   for (const page of context.pages()) {
     const url = page.url();
     if (url.includes("fordtechservice.dealerconnection.com") && !url.includes("login.microsoftonline")) {
+      await ensurePtsSessionHealthy(page).catch(() => recoverPtsPageSession(page));
       return page;
     }
   }
 
   const page = await context.newPage();
   await page.goto(PTS_HOME, { waitUntil: "domcontentloaded", timeout: 90000 });
+  await ensurePtsSessionHealthy(page);
   return page;
 }
 
@@ -261,10 +264,12 @@ async function ensurePtsHome(page: Page, force = false) {
     try {
       await page.goto(PTS_HOME, { waitUntil: "domcontentloaded", timeout: 90000 });
       await page.waitForTimeout(1500);
+      await ensurePtsSessionHealthy(page);
       return;
     } catch (err) {
       if (attempt === 3) throw err;
       logStep(`PTS home load failed (${attempt}/3), retrying...`);
+      await recoverPtsPageSession(page).catch(() => {});
       await page.waitForTimeout(3000);
     }
   }
@@ -500,7 +505,10 @@ function isRetryableCaptureError(err: unknown): boolean {
     msg.includes("intercepts pointer events") ||
     msg.includes("Workshop tab did not trigger") ||
     msg.includes("Frame was detached") ||
-    msg.includes("#modelList a")
+    msg.includes("#modelList a") ||
+    msg.includes("PTS session unhealthy") ||
+    msg.includes("subscriptionExpired") ||
+    msg.includes("VehicleMenu iframe")
   );
 }
 
@@ -674,6 +682,13 @@ async function runCaptureSession(
       fail++;
       consecutiveFails++;
       console.error(`FAIL ${vehicle.id}: ${err.message || err}`);
+      if (
+        String(err.message || err).includes("PTS session") ||
+        String(err.message || err).includes("subscriptionExpired")
+      ) {
+        logStep("Attempting PTS session recovery before next vehicle...");
+        await recoverPtsPageSession(page).catch(() => {});
+      }
       if (consecutiveFails >= CAPTURE_MAX_CONSECUTIVE_FAILS) {
         console.error(
           `\nStopping: ${consecutiveFails} consecutive failures. Refresh PTS in Chrome (launch-pts-chrome.sh) and re-run capture.`

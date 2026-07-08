@@ -41,6 +41,9 @@ const SKIP = new Set(["ak_bmsc"]);
 
 const AUTH_FAIL = /subscriptionExpired|signin|login|oauth|account\.microsoft/i;
 
+require("ts-node/register/transpile-only");
+const { recoverPtsPageSession } = require("../src/ptsAuth");
+
 async function findPtsTab(contexts) {
   for (const ctx of contexts) {
     for (const page of ctx.pages()) {
@@ -50,6 +53,17 @@ async function findPtsTab(contexts) {
         !AUTH_FAIL.test(url)
       ) {
         return { ctx, page, url };
+      }
+    }
+  }
+  for (const ctx of contexts) {
+    for (const page of ctx.pages()) {
+      const url = page.url();
+      if (url.includes("dealerconnection.com") && AUTH_FAIL.test(url)) {
+        console.log(`Stale PTS tab (${url}) — attempting recovery...`);
+        if (await recoverPtsPageSession(page)) {
+          return { ctx, page, url: page.url() };
+        }
       }
     }
   }
@@ -66,13 +80,21 @@ async function findPtsTab(contexts) {
 
   const ptsTab = await findPtsTab(contexts);
   if (!ptsTab) {
-    console.error(
-      "No logged-in PTS tab found in Chrome. Open https://www.fordtechservice.dealerconnection.com and log in, then retry."
-    );
-    await browser.close();
-    process.exit(1);
+    const anyPts = contexts.flatMap((c) => c.pages()).find((p) => p.url().includes("dealerconnection.com"));
+    if (anyPts) {
+      console.warn(
+        `No healthy PTS tab (url: ${anyPts.url()}) — exporting cookies from browser store anyway`
+      );
+    } else {
+      console.error(
+        "No PTS tab found in Chrome. Open https://www.fordtechservice.dealerconnection.com and log in, then retry."
+      );
+      await browser.close();
+      process.exit(1);
+    }
+  } else {
+    console.log(`PTS tab: ${ptsTab.url}`);
   }
-  console.log(`PTS tab: ${ptsTab.url}`);
 
   const map = new Map();
   for (const ctx of contexts) {

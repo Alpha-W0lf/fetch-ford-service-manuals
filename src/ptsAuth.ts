@@ -25,6 +25,66 @@ export function ptsAuthReasonFromUrl(url: string): string {
   return "auth";
 }
 
+const PTS_HOME_URL = "https://www.fordtechservice.dealerconnection.com/";
+const MOTORCRAFT_SUBS_URL = "https://www.motorcraftservice.com/MySubscriptions";
+
+/**
+ * PTS often redirects to subscriptionExpired when the browser session is stale —
+ * not when the Motorcraft subscription actually ended. Try navigation recovery
+ * before treating auth as hard-failed.
+ */
+export async function recoverPtsPageSession(page: Page): Promise<boolean> {
+  if (!isPtsAuthFailureUrl(page.url())) return true;
+
+  const before = page.url();
+  console.error(`[pts] Recovering stale PTS session (was: ${before})...`);
+
+  const tryGoto = async (url: string) => {
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 90_000 });
+    await page.waitForTimeout(2000);
+  };
+
+  await tryGoto(PTS_HOME_URL);
+  if (!isPtsAuthFailureUrl(page.url())) {
+    console.error(`[pts] Recovered via PTS home → ${page.url()}`);
+    return true;
+  }
+
+  await tryGoto(`${PTS_HOME_URL}Home/VehicleMenu`);
+  if (!isPtsAuthFailureUrl(page.url())) {
+    console.error(`[pts] Recovered via VehicleMenu → ${page.url()}`);
+    return true;
+  }
+
+  await tryGoto(MOTORCRAFT_SUBS_URL);
+  const ptsLink = page
+    .locator('a[href*="dealerconnection"], a[href*="fordtechservice"]')
+    .first();
+  if ((await ptsLink.count()) > 0) {
+    await ptsLink.click({ timeout: 15_000 }).catch(() => {});
+    await page.waitForLoadState("domcontentloaded", { timeout: 90_000 }).catch(() => {});
+    await page.waitForTimeout(3000);
+    if (!isPtsAuthFailureUrl(page.url())) {
+      console.error(`[pts] Recovered via Motorcraft subscriptions → ${page.url()}`);
+      return true;
+    }
+  }
+
+  console.error(`[pts] Recovery failed — still at: ${page.url()}`);
+  return false;
+}
+
+export async function ensurePtsSessionHealthy(page: Page): Promise<void> {
+  if (!isPtsAuthFailureUrl(page.url())) return;
+  const ok = await recoverPtsPageSession(page);
+  if (!ok) {
+    throw new PtsAuthError(
+      `PTS session unhealthy (${page.url()}). In Chrome: My Subscriptions → open PTS, or ./scripts/launch-pts-chrome.sh`,
+      ptsAuthReasonFromUrl(page.url())
+    );
+  }
+}
+
 export function gapReasonFromPtsError(error: unknown): string {
   const msg = error instanceof Error ? error.message : String(error);
   if (/subscriptionExpired|subscription.expired/i.test(msg)) {

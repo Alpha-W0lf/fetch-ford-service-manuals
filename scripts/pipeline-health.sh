@@ -14,6 +14,26 @@ is_pid_alive() {
 
 check_lock() {
   local name="$1" dir="$2"
+  if [[ "$name" == "bulk-download" ]]; then
+    local lock_file="$ROOT/logs/bulk-download.lock"
+    if pgrep -f 'scripts/bulk-download.sh' >/dev/null 2>&1; then
+      local pid=""
+      read -r pid <"$lock_file" 2>/dev/null || true
+      echo "  bulk-download: held (pid ${pid:-?}, orchestrator running)"
+      return 0
+    fi
+    if [[ -f "$lock_file" ]]; then
+      echo "  bulk-download: free (no orchestrator; flock released)"
+      if $FIX; then
+        : >"$lock_file" 2>/dev/null || rm -f "$lock_file"
+        echo "    → cleared stale lock file text"
+      fi
+    else
+      echo "  bulk-download: free"
+    fi
+    return 0
+  fi
+
   if [[ ! -d "$dir" ]]; then
     echo "  $name: free"
     return 0
@@ -54,7 +74,7 @@ echo "  yarn workers: $workers"
 
 echo "Locks:"
 stale=0
-check_lock "bulk-download" "$ROOT/logs/bulk-download.lock" || stale=1
+check_lock "bulk-download" "" || stale=1
 check_lock "cdp-chrome" "$ROOT/logs/cdp-chrome.lock" || stale=1
 
 echo "Queue:"

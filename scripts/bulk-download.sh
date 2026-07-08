@@ -19,8 +19,6 @@
 #   STALE_GAP_ATTEMPTS — deprioritize incomplete vehicles when every gap has this many failed attempts (default: 10)
 #   RECONCILE_EVERY_MIN — re-run reconcile-queue when idle (default: 60; 0=startup only)
 #   PDF_AUDIT_EVERY_MIN — spot-check PDF integrity when idle (default: 120; 0=disable)
-#   PDF_AUDIT_SAMPLE — PDFs to sample per spot-check (default: 50)   RECONCILE_EVERY_MIN — re-run reconcile-queue when no workers active (default: 60; 0=disable)
-#   PDF_AUDIT_EVERY_MIN — spot-check PDF integrity when idle (default: 120; 0=disable)
 #   PDF_AUDIT_SAMPLE — random PDFs per spot-check (default: 50)
 #
 # Queue statuses:
@@ -48,40 +46,29 @@ RECONCILE_EVERY_MIN="${RECONCILE_EVERY_MIN:-60}"
 PDF_AUDIT_EVERY_MIN="${PDF_AUDIT_EVERY_MIN:-120}"
 PDF_AUDIT_SAMPLE="${PDF_AUDIT_SAMPLE:-50}"
 export STALE_GAP_ATTEMPTS
-LOCK_DIR="$LOG_DIR/bulk-download.lock"
-BULK_LOCK_PID_FILE="$LOCK_DIR/pid"
+LOCK_FILE="$LOG_DIR/bulk-download.lock"
+mkdir -p "$LOG_DIR"
 
-bulk_lock_held_by_live_process() {
-  if pgrep -f 'scripts/bulk-download.sh' >/dev/null 2>&1; then
-    return 0
-  fi
-  if [[ -f "$BULK_LOCK_PID_FILE" ]]; then
-    local lock_pid
-    lock_pid=$(cat "$BULK_LOCK_PID_FILE" 2>/dev/null || true)
-    [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null && return 0
-  fi
-  return 1
-}
-
-if [[ -d "$LOCK_DIR" ]]; then
-  if bulk_lock_held_by_live_process; then
-    echo "Another bulk-download.sh is already running (lock: $LOCK_DIR)."
-    echo "Stop it first: pkill -f 'scripts/bulk-download.sh'"
+# Kernel-managed lock: released automatically when this process exits (any signal).
+# Unlike mkdir+pid files, flock does not leave stale locks after SIGKILL/OOM.
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  holder_pid=""
+  read -r holder_pid <"$LOCK_FILE" 2>/dev/null || true
+  if [[ -n "$holder_pid" ]] && kill -0 "$holder_pid" 2>/dev/null; then
+    echo "Another bulk-download.sh is already running (pid $holder_pid)."
+    echo "Check: ./scripts/queue-status.sh --health"
     exit 1
   fi
-  echo "Removing stale bulk lock (no live bulk-download.sh)"
-  rm -rf "$LOCK_DIR"
+  echo "Bulk lock file is busy but holder pid is not running."
+  echo "If no bulk process exists, remove $LOCK_FILE and retry."
+  exit 1
 fi
-
-mkdir "$LOCK_DIR" || { echo "Could not acquire bulk lock"; exit 1; }
-echo "$$" >"$BULK_LOCK_PID_FILE"
-trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT
+echo $$ >&9
 
 RECENT_403_FILE="$LOG_DIR/recent-403-stamps.txt"
 BACKOFF_UNTIL=0
 LAST_COOKIE_REFRESH=0
-LAST_RECONCILE=$(date +%s)
-LAST_PDF_AUDIT=$(date +%s)
 LAST_RECONCILE=0
 LAST_PDF_AUDIT=0
 
@@ -231,8 +218,9 @@ echo "Reconciling queue with disk..."
 echo "[reconcile] backfill-capture-gaps (may take a few minutes on large fleet)..."
 node "$ROOT/scripts/backfill-capture-gaps.js" 2>/dev/null || true
 echo "[reconcile] reconcile-queue..."
-node "$ROOT/scripts/reconcile-queue.js"
+node "$ROOT/scripts/reconcile-queue.js" || true
 LAST_RECONCILE=$(date +%s)
+LAST_PDF_AUDIT=$(date +%s)
 refresh_cookies || true
 connector_preflight || {
   echo "WARNING: Connector preflight failed — new jobs may fail until cookies are refreshed."
@@ -244,7 +232,8 @@ cleanup() {
   echo "Shutting down — reconciling queue..."
   PARALLEL="$PARALLEL" npx ts-node "$ROOT/scripts/prune-cdp-tabs.ts" >>"$LOG_DIR/cdp-tab-prune.log" 2>&1 || true
   node "$ROOT/scripts/reconcile-queue.js" 2>/dev/null || true
-  rm -rf "$LOCK_DIR" 2>/dev/null || true
+  # flock on fd 9 releases automatically; truncate pid in lock file for clarity
+  echo "" >&9 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 

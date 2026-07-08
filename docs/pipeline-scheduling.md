@@ -52,7 +52,17 @@ Within the same rank: `tier` ascending, then `priority` ascending.
 
 Vehicles with `needs_params` are **not** in the bulk queue until param capture finishes.
 
-## CDP lock (`logs/cdp-chrome.lock`)
+## Bulk lock (`logs/bulk-download.lock`)
+
+Uses **`flock`** on a lock file (kernel releases on process exit — no stale mkdir locks).
+
+Start detached (survives IDE session end):
+
+```bash
+./scripts/start-bulk-download.sh
+```
+
+Do **not** rely on Cursor/agent background shells for long runs — they kill the process group when the session ends, which stops workers and used to leave stale locks.
 
 Mutual exclusion for PTS Chrome between:
 

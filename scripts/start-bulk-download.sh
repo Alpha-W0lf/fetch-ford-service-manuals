@@ -21,9 +21,16 @@ LOG="logs/bulk-download-$(date +%Y%m%d-%H%M).log"
 PIDFILE="logs/bulk-download.pid"
 
 export PARALLEL="${PARALLEL:-2}"
-nohup caffeinate -dims env PARALLEL="$PARALLEL" "$ROOT/scripts/bulk-download.sh" >>"$LOG" 2>&1 &
-echo $! >"$PIDFILE"
-disown -h $! 2>/dev/null || true
+
+# Double-detach: survive IDE/agent session teardown (SIGHUP to process group).
+# Parent exits immediately; caffeinate + bulk-download run under init-like nohup.
+nohup bash -c "
+  cd '$ROOT'
+  exec caffeinate -dims env PARALLEL='$PARALLEL' '$ROOT/scripts/bulk-download.sh'
+" >>"$LOG" 2>&1 </dev/null &
+DETACH_PID=$!
+disown -h "$DETACH_PID" 2>/dev/null || true
+echo "$DETACH_PID" >"$PIDFILE"
 
 echo "Started bulk download (PARALLEL=$PARALLEL)"
 echo "  log:    $LOG"

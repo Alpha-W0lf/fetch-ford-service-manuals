@@ -46,25 +46,10 @@ RECONCILE_EVERY_MIN="${RECONCILE_EVERY_MIN:-60}"
 PDF_AUDIT_EVERY_MIN="${PDF_AUDIT_EVERY_MIN:-120}"
 PDF_AUDIT_SAMPLE="${PDF_AUDIT_SAMPLE:-50}"
 export STALE_GAP_ATTEMPTS
-LOCK_FILE="$LOG_DIR/bulk-download.lock"
 mkdir -p "$LOG_DIR"
 
-# Kernel-managed lock: released automatically when this process exits (any signal).
-# Unlike mkdir+pid files, flock does not leave stale locks after SIGKILL/OOM.
-exec 9>"$LOCK_FILE"
-if ! flock -n 9; then
-  holder_pid=""
-  read -r holder_pid <"$LOCK_FILE" 2>/dev/null || true
-  if [[ -n "$holder_pid" ]] && kill -0 "$holder_pid" 2>/dev/null; then
-    echo "Another bulk-download.sh is already running (pid $holder_pid)."
-    echo "Check: ./scripts/queue-status.sh --health"
-    exit 1
-  fi
-  echo "Bulk lock file is busy but holder pid is not running."
-  echo "If no bulk process exists, remove $LOCK_FILE and retry."
-  exit 1
-fi
-echo $$ >&9
+# Portable lock (macOS has no flock). Stale locks auto-removed when holder pid is dead.
+node "$ROOT/scripts/bulk-lock.js" acquire "$$"
 
 RECENT_403_FILE="$LOG_DIR/recent-403-stamps.txt"
 BACKOFF_UNTIL=0
@@ -215,8 +200,12 @@ COOKIE_FILE=$(node -pe "JSON.parse(require('fs').readFileSync('$QUEUE','utf8')).
 echo "Bulk downloader: parallel=$PARALLEL poll=${POLL_SEC}s idle_exit=${IDLE_EXIT_MIN}min cookie_refresh=${COOKIE_REFRESH_MIN}min"
 preflight_check
 echo "Reconciling queue with disk..."
-echo "[reconcile] backfill-capture-gaps (may take a few minutes on large fleet)..."
-node "$ROOT/scripts/backfill-capture-gaps.js" 2>/dev/null || true
+if [[ "${SKIP_BACKFILL_ON_START:-1}" == "1" ]]; then
+  echo "[reconcile] Skipping backfill-capture-gaps on start (set SKIP_BACKFILL_ON_START=0 to enable)"
+else
+  echo "[reconcile] backfill-capture-gaps (may take a few minutes on large fleet)..."
+  node "$ROOT/scripts/backfill-capture-gaps.js" 2>/dev/null || true
+fi
 echo "[reconcile] reconcile-queue..."
 node "$ROOT/scripts/reconcile-queue.js" || true
 LAST_RECONCILE=$(date +%s)
@@ -232,8 +221,7 @@ cleanup() {
   echo "Shutting down — reconciling queue..."
   PARALLEL="$PARALLEL" npx ts-node "$ROOT/scripts/prune-cdp-tabs.ts" >>"$LOG_DIR/cdp-tab-prune.log" 2>&1 || true
   node "$ROOT/scripts/reconcile-queue.js" 2>/dev/null || true
-  # flock on fd 9 releases automatically; truncate pid in lock file for clarity
-  echo "" >&9 2>/dev/null || true
+  node "$ROOT/scripts/bulk-lock.js" release "$$" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 

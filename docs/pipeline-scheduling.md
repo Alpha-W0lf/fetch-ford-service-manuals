@@ -52,9 +52,9 @@ Within the same rank: `tier` ascending, then `priority` ascending.
 
 Vehicles with `needs_params` are **not** in the bulk queue until param capture finishes.
 
-## Bulk lock (`logs/bulk-download.lock`)
+## Bulk lock (`logs/bulk-download.lock/`)
 
-Uses **`flock`** on a lock file (kernel releases on process exit — no stale mkdir locks).
+Portable mkdir+pid lock via `scripts/bulk-lock.js` (macOS has no `flock`). **Stale locks auto-clear** on next start when the holder pid is dead.
 
 Start detached (survives IDE session end):
 
@@ -62,7 +62,7 @@ Start detached (survives IDE session end):
 ./scripts/start-bulk-download.sh
 ```
 
-Do **not** rely on Cursor/agent background shells for long runs — they kill the process group when the session ends, which stops workers and used to leave stale locks.
+Do **not** rely on Cursor/agent background shells for long runs — they kill the process group when the session ends.
 
 Mutual exclusion for PTS Chrome between:
 

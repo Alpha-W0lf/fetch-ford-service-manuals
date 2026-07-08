@@ -15,22 +15,23 @@ is_pid_alive() {
 check_lock() {
   local name="$1" dir="$2"
   if [[ "$name" == "bulk-download" ]]; then
-    local lock_file="$ROOT/logs/bulk-download.lock"
+    local lock_dir="$ROOT/logs/bulk-download.lock"
     if pgrep -f 'scripts/bulk-download.sh' >/dev/null 2>&1; then
       local pid=""
-      read -r pid <"$lock_file" 2>/dev/null || true
+      read -r pid <"$lock_dir/pid" 2>/dev/null || true
       echo "  bulk-download: held (pid ${pid:-?}, orchestrator running)"
       return 0
     fi
-    if [[ -f "$lock_file" ]]; then
-      echo "  bulk-download: free (no orchestrator; flock released)"
+    if [[ -d "$lock_dir" ]]; then
+      echo "  bulk-download: STALE (no orchestrator; will auto-clear on next start)"
       if $FIX; then
-        : >"$lock_file" 2>/dev/null || rm -f "$lock_file"
-        echo "    → cleared stale lock file text"
+        rm -rf "$lock_dir"
+        rm -f "$ROOT/logs/bulk-download.lock"
+        echo "    → removed stale bulk lock"
       fi
-    else
-      echo "  bulk-download: free"
+      return 1
     fi
+    echo "  bulk-download: free"
     return 0
   fi
 

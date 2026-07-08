@@ -39,9 +39,17 @@ check_lock() {
 
 echo "=== Pipeline health ==="
 echo "Processes:"
-pgrep -fl 'scripts/bulk-download.sh' 2>/dev/null | sed 's/^/  bulk: /' || echo "  bulk: not running"
-pgrep -fl 'capture-params.ts' 2>/dev/null | sed 's/^/  params: /' || echo "  params: not running"
-workers=$(pgrep -fl 'yarn start.*manuals/' 2>/dev/null | wc -l | tr -d ' ')
+if pgrep -fl 'scripts/bulk-download.sh' >/dev/null 2>&1; then
+  pgrep -fl 'scripts/bulk-download.sh' | sed 's/^/  bulk: /'
+else
+  echo "  bulk: not running"
+fi
+if pgrep -fl 'capture-params.ts' >/dev/null 2>&1; then
+  pgrep -fl 'capture-params.ts' | sed 's/^/  params: /'
+else
+  echo "  params: not running"
+fi
+workers=$(pgrep -fl 'yarn start' 2>/dev/null | grep -c 'manuals/' || true)
 echo "  yarn workers: $workers"
 
 echo "Locks:"

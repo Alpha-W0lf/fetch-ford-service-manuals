@@ -12,6 +12,13 @@ How bulk download, param capture, and PTS Chrome (CDP) coordinate.
 
 Run bulk and param capture **in parallel**. They share PTS Chrome only briefly.
 
+Health check before start or after a crash:
+
+```bash
+./scripts/pipeline-health.sh
+./scripts/pipeline-health.sh --fix-locks   # remove stale locks only
+```
+
 ## Per-vehicle download phases (bulk)
 
 Each `yarn start` job runs sequentially:

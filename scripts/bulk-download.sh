@@ -41,12 +41,27 @@ CIRCUIT_BREAKER_THRESHOLD="${CIRCUIT_BREAKER_THRESHOLD:-2}"
 STALE_GAP_ATTEMPTS="${STALE_GAP_ATTEMPTS:-10}"
 export STALE_GAP_ATTEMPTS
 LOCK_DIR="$LOG_DIR/bulk-download.lock"
+BULK_LOCK_PID_FILE="$LOCK_DIR/pid"
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  echo "Another bulk-download.sh is already running (lock: $LOCK_DIR)."
-  echo "Stop it first: pkill -f 'scripts/bulk-download.sh'"
-  exit 1
+  if [[ -f "$BULK_LOCK_PID_FILE" ]]; then
+    stale_pid=$(cat "$BULK_LOCK_PID_FILE" 2>/dev/null || true)
+    if [[ -n "$stale_pid" ]] && ! kill -0 "$stale_pid" 2>/dev/null; then
+      echo "Removing stale bulk lock (pid $stale_pid not running)"
+      rm -rf "$LOCK_DIR"
+      mkdir "$LOCK_DIR" || { echo "Could not acquire bulk lock"; exit 1; }
+    else
+      echo "Another bulk-download.sh is already running (lock: $LOCK_DIR)."
+      echo "Stop it first: pkill -f 'scripts/bulk-download.sh'"
+      exit 1
+    fi
+  else
+    echo "Another bulk-download.sh is already running (lock: $LOCK_DIR)."
+    echo "Stop it first: pkill -f 'scripts/bulk-download.sh'"
+    exit 1
+  fi
 fi
-trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+echo "$$" >"$BULK_LOCK_PID_FILE"
+trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 RECENT_403_FILE="$LOG_DIR/recent-403-stamps.txt"
 BACKOFF_UNTIL=0
@@ -162,7 +177,9 @@ COOKIE_FILE=$(node -pe "JSON.parse(require('fs').readFileSync('$QUEUE','utf8')).
 echo "Bulk downloader: parallel=$PARALLEL poll=${POLL_SEC}s idle_exit=${IDLE_EXIT_MIN}min cookie_refresh=${COOKIE_REFRESH_MIN}min"
 preflight_check
 echo "Reconciling queue with disk..."
+echo "[reconcile] backfill-capture-gaps (may take a few minutes on large fleet)..."
 node "$ROOT/scripts/backfill-capture-gaps.js" 2>/dev/null || true
+echo "[reconcile] reconcile-queue..."
 node "$ROOT/scripts/reconcile-queue.js"
 refresh_cookies || true
 connector_preflight || {
@@ -175,7 +192,7 @@ cleanup() {
   echo "Shutting down — reconciling queue..."
   PARALLEL="$PARALLEL" npx ts-node "$ROOT/scripts/prune-cdp-tabs.ts" >>"$LOG_DIR/cdp-tab-prune.log" 2>&1 || true
   node "$ROOT/scripts/reconcile-queue.js" 2>/dev/null || true
-  rmdir "$LOCK_DIR" 2>/dev/null || true
+  rm -rf "$LOCK_DIR" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 

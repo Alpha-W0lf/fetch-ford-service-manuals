@@ -59,10 +59,14 @@ Portable mkdir+pid lock via `scripts/bulk-lock.js` (macOS has no `flock`). **Sta
 Start detached (survives IDE session end):
 
 ```bash
-./scripts/start-bulk-download.sh
+./scripts/start-bulk-in-terminal.sh    # preferred — opens Terminal.app
+# or, if already in Terminal:
+SKIP_BACKFILL_ON_START=1 ./scripts/start-bulk-download.sh
 ```
 
 Do **not** rely on Cursor/agent background shells for long runs — they kill the process group when the session ends.
+
+Startup reconcile skips fleet-wide `backfill-capture-gaps` by default (`SKIP_BACKFILL_ON_START=1`). Set `SKIP_BACKFILL_ON_START=0` for a full fleet gap audit before bulk.
 
 Mutual exclusion for PTS Chrome between:
 
@@ -108,10 +112,11 @@ node scripts/audit-pdf-integrity.js 2016-transit # one vehicle
 
 ## Recommended ops rhythm
 
-1. Keep `PARALLEL=2` bulk running (`caffeinate -dims ./scripts/bulk-download.sh`).
-2. Run `./scripts/run-capture-params.sh` in another terminal when CDP is up.
-3. Refresh cookies every few hours or after auth circuit-breaker trips.
-4. After code changes: `node scripts/reconcile-queue.js` before restart (no need to stop for reconcile alone).
+1. Start bulk: `./scripts/start-bulk-in-terminal.sh` (`PARALLEL=2` default).
+2. Run `./scripts/run-capture-params.sh` in a **second Terminal** when CDP is up.
+3. Check health periodically: `./scripts/queue-status.sh --health`.
+4. Cookies refresh automatically every 3h from PTS Chrome; manual refresh after auth circuit-breaker trips.
+5. After **code** changes to ops scripts: reconcile before restart — do not restart bulk during a healthy run just to pick up doc changes.
 
 ## Param capture ordering
 

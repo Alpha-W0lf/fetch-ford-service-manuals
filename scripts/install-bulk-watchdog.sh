@@ -60,6 +60,6 @@ launchctl kickstart -k "gui/${UID_NUM}/${LABEL}"
 
 echo "Installed $LABEL"
 echo "  plist:  $PLIST"
-echo "  log:    $ROOT/logs/watchdog.log"
+echo "  log:    $HOME/Library/Logs/ford-bulk-watchdog.log"
 echo "  check:  launchctl print gui/${UID_NUM}/${LABEL}"
 echo "  health: $ROOT/scripts/queue-status.sh --health"

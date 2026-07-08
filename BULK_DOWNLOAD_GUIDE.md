@@ -37,11 +37,34 @@ Copy the full `cookie:` header from that **document** request, append `CONTENT_A
 
 ## Parallel downloads
 
-The bulk script supports **2 parallel workers** by default (`parallel: 2` in `vehicles.json`):
+The bulk script supports **2 parallel workers** by default (`parallel: 2` in `vehicles.json`).
+
+### How to start bulk (important)
+
+**Always use macOS Terminal.app** — not Cursor's integrated terminal — for runs longer than a few minutes.
 
 ```bash
-PARALLEL=2 caffeinate -dims ./scripts/bulk-download.sh
+cd /Users/tom/Documents/Git/fetch-ford-service-manuals
+./scripts/start-bulk-in-terminal.sh
 ```
+
+This opens Terminal, fixes stale locks, reconciles the queue, and starts bulk under `caffeinate` + `nohup`.
+
+**If you are already in Terminal.app:**
+
+```bash
+SKIP_BACKFILL_ON_START=1 ./scripts/start-bulk-download.sh
+```
+
+**Health check (any time):**
+
+```bash
+./scripts/queue-status.sh --health
+```
+
+See also: `docs/pipeline-scheduling.md`, `docs/2026-07-08_pipeline_inventory_and_action_items.md`.
+
+**Do not** run `./scripts/bulk-download.sh` directly from Cursor agent sessions — the orchestrator dies when the session ends.
 
 **Honest limits:**
 - Each `yarn start` launches its own Chromium + PDF renderer (~500MB RAM each).
@@ -60,9 +83,15 @@ Queue file: `templates/vehicles.json` — currently **186 vehicles**:
 - **Tier 2+** (fill): remaining years in each generation
 - **Tier 3**: consumer cars/SUVs
 
-Statuses: `needs_params` → `pending` → `complete` | `failed`
+Statuses: `needs_params` → `pending` → `complete` | `incomplete` | `failed`
 
-**Critical:** the script idles when no vehicles have `status: pending` and a `params.json` file. Keep feeding params while downloads run overnight.
+**Critical:** bulk idles when no vehicles have `status: pending` and a `params.json` file. Run param capture in a **second Terminal** while bulk runs:
+
+```bash
+./scripts/run-capture-params.sh
+```
+
+Param capture waits for the CDP lock when bulk is on connector pages.
 
 ## Time math (~60 hours left)
 
@@ -90,15 +119,10 @@ At ~45–60 min/vehicle (Transit was ~1 hr):
 
 ### Phase 2 — Run overnight (automated)
 
-```bash
-cd /Users/tom/Documents/Git/fetch-ford-service-manuals
-chmod +x scripts/bulk-download.sh scripts/verify-download.sh
+Use `./scripts/start-bulk-in-terminal.sh` (see **How to start bulk** above). Logs:
 
-# Keep Mac awake while lid closed (optional)
-caffeinate -dims ./scripts/bulk-download.sh templates/vehicles.json
-```
-
-Logs go to `logs/<vehicle-id>.log`.
+- Orchestrator: `logs/bulk-download-*.log`
+- Per vehicle: `logs/<vehicle-id>.log`
 
 ### Phase 3 — Verify each morning
 
@@ -177,7 +201,9 @@ Copy query params into `wiring`:
 | `Failed to log in` / connector failures | Refresh `cookieString.txt` from dealerconnection.com `/` |
 | `ERR_HTTP2_PROTOCOL_ERROR` | Use `--noCookieTest`; ensure cookies fresh |
 | Wrong/missing workshop sections | Check `category` / `CategoryDescription` in params |
-| Run stopped when lid closed | Use `caffeinate -dims`; verify with `verify-download.sh` |
+| Run stopped when lid closed | Use `./scripts/start-bulk-in-terminal.sh` (`caffeinate` included); verify with `./scripts/queue-status.sh --health` |
+| Orchestrator died after ~2 min | Started from Cursor — use Terminal.app instead |
+| Stale bulk lock | `./scripts/pipeline-health.sh --fix-locks` then restart via Terminal |
 | Disk full | ~1 GB per full manual; plan 30–50 GB for a large batch |
 
 ---
@@ -191,5 +217,9 @@ Copy query params into `wiring`:
 | `vehicles/<id>/params.json` | Per-vehicle PTS parameters |
 | `manuals/<id>/` | Download output |
 | `logs/<id>.log` | Per-vehicle run log |
-| `scripts/bulk-download.sh` | Run the queue |
+| `scripts/bulk-download.sh` | Queue orchestrator (do not start directly from Cursor) |
+| `scripts/start-bulk-in-terminal.sh` | **Preferred** — start bulk in Terminal.app |
+| `scripts/start-bulk-download.sh` | Detached start when already in Terminal |
+| `scripts/run-capture-params.sh` | Capture `params.json` for queue expansion |
+| `scripts/queue-status.sh --health` | Pipeline health |
 | `scripts/verify-download.sh` | Quick PDF count check |

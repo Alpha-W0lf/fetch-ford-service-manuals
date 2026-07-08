@@ -130,3 +130,8 @@ dist
 .idea/
 
 manuals/
+logs/
+templates/cookieString.txt
+templates/params.json
+templates/vehicles.json
+vehicles/*/params.json

@@ -113,7 +113,7 @@ node scripts/audit-pdf-integrity.js 2016-transit # one vehicle
 ## Recommended ops rhythm
 
 1. Start bulk: `./scripts/start-bulk-in-terminal.sh` (`PARALLEL=2` default).
-2. Run `./scripts/run-capture-params.sh` in a **second Terminal** when CDP is up.
+2. Start param capture: `./scripts/start-capture-in-terminal.sh` (second Terminal).
 3. Check health periodically: `./scripts/queue-status.sh --health`.
 4. Cookies refresh automatically every 3h from PTS Chrome; manual refresh after auth circuit-breaker trips.
 5. After **code** changes to ops scripts: reconcile before restart — do not restart bulk during a healthy run just to pick up doc changes.

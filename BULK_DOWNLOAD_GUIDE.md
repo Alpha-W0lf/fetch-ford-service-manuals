@@ -88,8 +88,10 @@ Statuses: `needs_params` → `pending` → `complete` | `incomplete` | `failed`
 **Critical:** bulk idles when no vehicles have `status: pending` and a `params.json` file. Run param capture in a **second Terminal** while bulk runs:
 
 ```bash
-./scripts/run-capture-params.sh
+./scripts/start-capture-in-terminal.sh
 ```
+
+Or if already in Terminal: `./scripts/run-capture-params.sh`
 
 Param capture waits for the CDP lock when bulk is on connector pages.
 

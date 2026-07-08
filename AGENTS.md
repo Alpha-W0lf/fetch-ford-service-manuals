@@ -31,7 +31,8 @@ Read:
 |------|---------|
 | Bulk (manual) | `./scripts/start-bulk-in-terminal.sh` |
 | Bulk (if already in Terminal) | `SKIP_BACKFILL_ON_START=1 ./scripts/start-bulk-download.sh` |
-| Param capture | `./scripts/run-capture-params.sh` (second Terminal; waits for CDP lock) |
+| Param capture | `./scripts/start-capture-in-terminal.sh` (second Terminal) |
+| Param capture (in Terminal already) | `./scripts/run-capture-params.sh` |
 | Health | `./scripts/queue-status.sh --health` |
 
 Watchdog (`./scripts/install-bulk-watchdog.sh`) is **experimental** — do not treat as proven supervision.

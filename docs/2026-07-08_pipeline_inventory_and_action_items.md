@@ -36,7 +36,7 @@ Check live: `./scripts/queue-status.sh --health`
 | Incomplete | 1 (`2011-f-450` — gaps on disk) |
 | Pending | 161 |
 | needs_params | 75 |
-| Param capture | Not running |
+| Param capture | **Running** (Terminal; `logs/capture-params-20260708-1811.log`) |
 
 **Recently completed this run:** `2018-f-350`, `2018-f-450`, `2011-f-550` (verified).
 
@@ -54,7 +54,7 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 |---|------|-----|------------|------------------|-------------------|--------|
 | **P0** | **Never start bulk from Cursor terminal**; use `./scripts/start-bulk-in-terminal.sh` | Only proven stable supervisor path | Low | Bulk stops; lost download hours | None | ✅ Documented |
 | **P0** | Keep PTS Chrome open (`:9222`) + Mac plugged in | Connectors + cookie refresh | Low | Connector/auth failures | None | Ongoing |
-| **P0** | Run param capture in parallel (`./scripts/run-capture-params.sh`) in 2nd Terminal | 75 vehicles blocked | Medium | Can't drain full queue | CDP contention (lock mitigates) | **Ready — not started** |
+| **P0** | Run param capture in parallel (`./scripts/start-capture-in-terminal.sh`) in 2nd Terminal | 75 vehicles blocked | Medium | Can't drain full queue | CDP contention (lock mitigates) | **Running** |
 | **P1** | Prove or remove launchd watchdog | Experimental; TCC issues | Medium | No auto-restart overnight | Spurious Terminal tabs | Open |
 | **P1** | Update `BULK_DOWNLOAD_GUIDE.md` | Single ops doc | Low | Repeat mis-starts | Doc drift | ✅ Done |
 | **P1** | Split `bulk-download.sh` (~500 lines) | Maintainability | Medium | Harder debugging | Break running pipeline | **Defer until bulk stops** |

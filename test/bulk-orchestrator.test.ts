@@ -741,6 +741,70 @@ describe("bulk-orchestrator-lib", () => {
     expect(logLines.some((l) => l.includes("hb-v"))).toBe(true);
   });
 
+  it("runOne skips yarn spawn when entry.reaped after refreshCookies", async () => {
+    const root = mkRoot();
+    const outputDir = "manuals/pre-reaped-guard";
+    const paramsRel = "vehicles/pre-reaped/params.json";
+    fs.mkdirSync(path.dirname(path.join(root, paramsRel)), { recursive: true });
+    fs.writeFileSync(path.join(root, paramsRel), "{}");
+    mkIncompleteManual(root, outputDir);
+    const queuePath = writeQueue(root, [
+      {
+        id: "pre-reaped-v",
+        paramsFile: paramsRel,
+        outputDir,
+        status: "pending",
+      },
+    ]);
+    const config = baseConfig(root, queuePath);
+    config.cookieRefreshMin = 0;
+
+    let yarnSpawned = false;
+    const entry = {
+      vid: "pre-reaped-v",
+      done: false,
+      exitCode: 1,
+      pid: null,
+      reaped: true,
+      startedAt: Date.now(),
+      logPath: path.join(root, "logs/pre-reaped-v.log"),
+      _resolveWorker: null as ((code: number) => void) | null,
+    };
+
+    const deps = {
+      log: () => {},
+      nowSec: () => Math.floor(Date.now() / 1000),
+      fetch: async () => ({ ok: false }),
+      spawnSync: () => ({ status: 0, stdout: "", stderr: "" }),
+      spawn: (cmd: string) => {
+        if (cmd === "yarn") yarnSpawned = true;
+        return {
+          pid: 1002,
+          stdout: { pipe: () => {} },
+          stderr: { pipe: () => {} },
+          on: () => {},
+        };
+      },
+      sleep: async () => {},
+    };
+
+    const code = await runOne(
+      config,
+      {
+        v: { id: "pre-reaped-v", paramsFile: paramsRel, outputDir },
+        workshop: true,
+        wiring: true,
+        stale: false,
+      },
+      deps as never,
+      null,
+      entry as never
+    );
+
+    expect(code).toBe(1);
+    expect(yarnSpawned).toBe(false);
+  });
+
   it("getVehicleLogMtime returns null for missing log", () => {
     const root = mkRoot();
     expect(

@@ -152,8 +152,8 @@ Guide 04.1 was **necessary** for parallel orchestration. It is **not sufficient*
 | **REL-01** | Hung-**alive** worker | Yarn PID lives, log frozen, high CPU — slot blocked indefinitely | **Partial** — only dead PID reap |
 | **REL-02** | Capture no clean exit | Finished session leaves node process running | None |
 | **REL-03** | Orphan prune accumulation | Old `prune-cdp-tabs` compete for CDP for hours | Partial — disconnect timeout only |
-| **REL-04** | No process supervisor | Orchestrator crash → bulk stops until external restart | None (OPS-02/03) |
-| **REL-05** | No orchestrator heartbeat | Cannot distinguish slow job vs freeze from bulk log alone | None (OPS-06) |
+| **REL-04** | No process supervisor | Orchestrator crash → bulk stops until external restart | **Partial** — 04.2 stall detection in `ensure-bulk-running.sh`; launchd proof Phase G |
+| **REL-05** | No orchestrator heartbeat | Cannot distinguish slow job vs freeze from bulk log alone | **Fixed** — 04.2 `[heartbeat]` lines |
 | **REL-06** | No per-job wall clock | `yarn start` can run unbounded | None |
 | **REL-07** | PTS/session drift | 403 bursts, UI timeouts, Chrome error tabs | Mitigated by cookie refresh (3h) + queue retry |
 

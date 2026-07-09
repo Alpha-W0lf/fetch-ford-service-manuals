@@ -52,7 +52,7 @@
 | **OPS-03** | P0 | **macOS TCC** blocks launchd scripts in `~/Documents` | Open | Watchdog experimental only |
 | **OPS-04** | P1 | **Stale locks** after killed orchestrator | Mitigated `bulk-lock.js` | `pipeline-health.sh --fix-locks` |
 | **OPS-05** | P1 | **Multiple overlapping launchers** | Documented | Phase G consolidate |
-| **OPS-06** | P1 | **No orchestrator heartbeat** in bulk log | Open | **Guide 04.2** (raised from P2 — needed for unsupervised ops) |
+| **OPS-06** | P1 | **No orchestrator heartbeat** in bulk log | **Fixed** Guide 04.2 | `[heartbeat]` in `orchestratorTick` |
 | **OPS-07** | P2 | **Capture pass summary** not logged | Open | Guide 05 optional `cli.ts` line |
 
 ---
@@ -97,7 +97,7 @@
 | CDP session-long lock starves capture | Per-connector lock + capture defer | Guide 03 |
 | Aggressive tab prune closed live connector tab | Safe prune rules | Guide 03 + `cdp_tab_hygiene.md` |
 | `captureGaps` TS/JS contract drift | `lib/capture-gaps-rules.js` + tests | Guide 02 |
-| No unit tests / CI | 75 Vitest tests + `.github/workflows/test.yml` | Guide 02 + 04.1 |
+| No unit tests / CI | 84 Vitest tests + `.github/workflows/test.yml` | Guide 02 + 04.1 + 04.2 |
 | Orphan `downloading` on worker exit | `fixOrphanDownloading` in `reapWorkers` | Guide 04 — **extended by 04.1** `reapStaleWorkers` for `done: false` |
 | Bulk orchestrator parallel stall (RUN-01) | Removed blocking orchestrator prune; PID stale reap | Guide 04.1 (`6c15180`) |
 | `2016-f-250` connector interrupted (RUN-03) | INCOMPLETE → retry → OK post-04.1 | Session 2026-07-09 |
@@ -147,5 +147,5 @@
 
 | Date | Update |
 |------|--------|
-| 2026-07-09 | Guide 04.1 executed — RUN-01 fixed; REL-* unsupervised gaps; 04.2 outline; checkpoint doc |
+| 2026-07-09 | Guide 04.2 executed — unsupervised reliability; 84 tests |
 | 2026-07-09 | Guide 04.1 executed — RUN-01 fix deployed; 75 tests |

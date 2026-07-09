@@ -153,6 +153,7 @@ test/
 ### Step 5: CLI + compat entry
 
 * [ ] `src/capture/cli.ts` — `main`, `runCaptureSession`, two-pass defer/retry
+* [ ] Optional (low risk, in scope): first-pass summary log — `First pass: N ok, M defer, K fail` before retry pass (P2 observability; see runtime observations)
 * [ ] `scripts/capture-params.ts` → `import './capture/cli'` or re-export `main`
 * [ ] Optional: `"capture-params": "ts-node src/capture/cli.ts"` in `package.json` **only if** compat script kept
 * [ ] Migrate `patchVehicleStatus` to `lib/patch-queue.js`
@@ -185,7 +186,8 @@ test/
 | CDP lock behavior change | **High** | Guide 03 tests must pass; no edits to defer lib |
 | Import path / ts-node resolution | Medium | Keep `scripts/capture-params.ts` as entry; test `yarn capture-params` |
 | `require()` from TS in `src/capture/` | Medium | Follow bulk pattern; minimal CJS requires at module boundaries |
-| Bulk + capture parallel ops | Medium | No code change; lock/defer already proven live 2026-07-08 |
+| Bulk + capture parallel ops | Medium | Lock/defer works; **PTS home reset can timeout** when connectors load Chrome — see runtime observations § Broken tabs |
+| Chrome error tabs (reset / ERR_TIMED_OUT) | Low (UX) | Failed `page.goto` leaves stale tabs; refresh PTS if capture hits 5 consecutive fails |
 | Accidental `pre_2003` URL change | Low | `buildParams` test asserts placeholder shape until Guide 06 |
 
 **Rollback:** `git revert`; `./scripts/start-capture-in-terminal.sh --restart`.

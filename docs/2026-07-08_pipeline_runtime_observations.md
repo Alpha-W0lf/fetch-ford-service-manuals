@@ -1,7 +1,7 @@
 # Pipeline runtime observations — 2026-07-08 evening session
 
-**Checkpoint time:** ~22:24 local (session ~70 min)  
-**Prior checkpoint:** ~22:07 — see changelog below  
+**Checkpoint time:** ~22:30 local (session ~75 min)  
+**Prior checkpoint:** ~22:24  
 **Related:** [2026-07-08_pipeline_inventory_and_action_items.md](./2026-07-08_pipeline_inventory_and_action_items.md), [pipeline-scheduling.md](./pipeline-scheduling.md), [reference/architecture.md](./reference/architecture.md)
 
 ---
@@ -10,8 +10,8 @@
 
 | Pipeline | Running? | Progressing? | Verdict |
 |----------|----------|--------------|---------|
-| **Bulk** | Yes (pid 28011, ~70 min) | Yes — connectors saving; ~1962+ / ~2167 PDFs | **Healthy, slow** |
-| **Param capture** | Yes (pid 29405) | Partial — **7 OK**, **23 defer**, **3 FAIL**; PTS home timeouts under load | **Stressed** — watch consecutive fails |
+| **Bulk** | Yes (pid 28011, ~75 min) | Yes — `2016-f-250` still saving connectors; `2018-expedition-max` finished with **1 connector gap** | **Healthy, slow** |
+| **Param capture** | Yes (pid 29405) | **7 OK**, **25 defer**, **3 FAIL**; first pass still deferring under CDP lock | **Stressed** — watch consecutive fails |
 
 **You are not mistaken** about low visible Chrome activity — that is **expected** for most bulk work. See [Why Chrome looks idle](#why-chrome-looks-idle) below.
 

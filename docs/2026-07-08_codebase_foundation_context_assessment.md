@@ -42,7 +42,7 @@ Foundation work is successful when:
 
 - [x] **Architecture is documented** in one canonical doc (components, locks, state machine, blessed start paths)
 - [x] **Orchestration complexity is bounded** — bulk bash split done; `bulk-orchestrator-lib.js` (~668 lines) optional future split
-- [ ] **No critical logic duplicated** across TS/JS pairs without a single source of truth (`captureGaps` aligned in Guide 02)
+- [x] **No critical logic duplicated** across TS/JS pairs without a single source of truth (`lib/capture-gaps-rules.js` + Guide 02 contract tests)
 - [x] **CDP coordination is predictable** — Guide 03 executed + live validated
 - [x] **Automated tests exist** for queue, locks, verify/reconcile, orchestrator (68 tests)
 - [x] **Regression confidence** — contributor can change lock/queue/orchestrator code with `yarn test`
@@ -59,9 +59,9 @@ Foundation work is successful when:
 | Largest files | `capture-params.ts` (**891**), `index.ts` (**383**), `bulk-orchestrator-lib.js` (**~670**) | **capture-params still oversized**; bulk orchestrator split done (Guide 04) |
 | `scripts/` files | **40** | **High ops surface area** relative to core `src/` |
 | `src/` TS files | **30** | Reasonable domain split (workshop / wiring / pre-2003) |
-| Test files | **0** formal (`*.test.*`, `*.spec.*`) | Critical gap |
-| CI workflows | **0** (only `.github/FUNDING.yml`) | No automated gate |
-| `package.json` test script | **None** | No `yarn test` entry point |
+| Test files | **13** (`test/*.test.ts`) — **68 tests** | Guide 02 executed |
+| CI workflows | **1** (`.github/workflows/test.yml`) | `yarn test` on push/PR |
+| `package.json` test script | **`yarn test`** (Vitest) | Regression gate for libs + orchestrator |
 | Docs in `docs/` | **3** (+ root `AGENTS.md`, `BULK_DOWNLOAD_GUIDE.md`, `README.md`, etc.) | Thin for system complexity |
 | Git commits | **82** total; **25 on 2026-07-08 alone** | Rapid ops-layer growth |
 | Languages in repo | TypeScript, JavaScript, bash, **Python** (`import-dealerconnection-cookie.py`) | Mixed ops surface |
@@ -73,7 +73,7 @@ The codebase is **not large by industry standards**, but it is **disproportionat
 1. **Three runtime modes** interact: headless Playwright, live Chrome CDP, and bash orchestration.
 2. **Two languages** (TypeScript + bash + ad hoc Node scripts) implement overlapping concerns.
 3. **Filesystem-backed state** (`vehicles.json`, `capture-gaps.json`, lock dirs) has **layered** write safety: `lib/patch-queue.js` (mkdir lock + atomic tmp+rename) serializes per-vehicle status from bulk and capture; **whole-file rewrites** still used by `reconcile-queue.js`, `backfill-capture-gaps.js`, `generate-vehicle-queue.js`, `append-vehicle-queue.js` — run reconcile only when workers idle (bulk already does this).
-4. **No automated safety net** — every fix is validated only by a live 72-hour subscription run.
+4. **Orchestration still mostly live-validated** — pure libs and orchestrator have tests (68), but PTS navigation and CDP flows still require soak runs.
 
 **Maintaining and implementing high-confidence fixes is getting harder**, not because `src/wiring/` is unmaintainable, but because **orchestration + concurrency + CDP coordination** were added quickly without tests or a single architectural document.
 
@@ -160,41 +160,26 @@ The codebase is **not large by industry standards**, but it is **disproportionat
 
 **Impact:** Hard to reason about lock lifetime, failure modes, and restart behavior. Changes require live PTS Chrome to validate.
 
-### 2. TypeScript / JavaScript duplication (with contract drift)
+### 2. TypeScript / JavaScript duplication — **partially resolved (Guide 02)**
 
 | TS | JS | Sync status | Risk |
 |----|-----|-------------|------|
-| `src/pathResolve.ts` (70 lines) | `scripts/path-resolve-lib.js` (132 lines) | **Explicit** "keep in sync" comment | Path bugs → wrong gap audits / verify |
-| `src/captureGaps.ts` (208 lines) | `scripts/capture-gaps-lib.js` (157 lines) | **Implicit** — no sync comment; parallel implementations | Queue vs download disagree on complete |
+| `src/pathResolve.ts` | `lib/path-resolve.js` | **Shared tests** (Guide 02) | Low if tests green |
+| `src/captureGaps.ts` | `scripts/capture-gaps-lib.js` | **Canonical rules:** `lib/capture-gaps-rules.js` + contract tests | Low — was P0; aligned |
 | Lock acquire/release | `bulk-lock.js`, `cdp-chrome-lock.js` | Copy-paste pattern | Drift in stale-PID handling |
-| Gap backfill | `capture-gaps-backfill-lib.js` (separate) | Third related module; filters orphan `log-backfill` on merge |
+| Gap backfill | `capture-gaps-backfill-lib.js` | Separate merge path | Orphan `log-backfill` filtered on merge |
 
-**Verified contract mismatch (not hypothetical):**
+**Former mismatch (fixed):** TS and JS blocking-gap rules now share `lib/capture-gaps-rules.js`; `test/capture-gaps-rules.test.ts` + `test/captureGaps.test.ts` lock contract.
 
-- `capture-gaps-lib.js` treats `log-backfill` gaps **without** `expectedFile` as **non-blocking** (`isBlockingGap`).
-- `src/captureGaps.ts` `hasBlockingGaps()` only excludes `toc-audit` — it does **not** apply the `log-backfill` rule.
-- **Hybrid-complete eligibility diverges too:** TS `isHybridCompleteEligible` counts all non-`toc-audit` gaps toward the max-gap threshold; JS uses `blockingGaps()` first — so orphan `log-backfill` rows can block hybrid complete in download but not in queue.
-- **Effect:** `yarn start` may exit as incomplete while `reconcile-queue.js` / bulk marks the vehicle complete (or vice versa) for the same `capture-gaps.json`.
+**Remaining risk:** Lock modules still duplicated; path-resolve has two implementations (tested for parity).
 
-**Impact:** Fixes in one language may not propagate; queue status and download exit code can diverge. **Consolidation + contract tests are P0 for Phase B**, not optional cleanup.
+### 3. Automated test suite — **partial (Guide 02)**
 
-**Dependency asymmetry (pass 4 — verified):** Bulk/reconcile/verify paths all call **`capture-gaps-lib.js` (JS)**:
+- **68 Vitest tests** across queue, locks, verify/reconcile, orchestrator, capture-gap rules, path-resolve
+- **CI:** `.github/workflows/test.yml` runs `yarn test` on push/PR
+- **Still untested:** PTS navigation (`capture-params.ts`), live CDP flows, full orchestrator soak (manual subscription run)
 
-- `scripts/verify-download-lib.js` → `hasCaptureGaps` / `captureGapCount`
-- `scripts/reconcile-queue.js` → same
-- `scripts/bulk-download.sh` (inline `node -e`) → same
-
-Only **`yarn start` / `src/index.ts`** uses **`src/captureGaps.ts` (TS)** for exit status and gap recording during download.
-
-**Recommended canonical semantics for Dev Guide 01:** Treat **JS `capture-gaps-lib` blocking rules** as queue truth (bulk fleet behavior). Align TS `CaptureGaps` to match — do not invert without explicit ops reason.
-
-### 3. No automated test suite
-
-- Zero `*.test.ts` / `*.spec.ts` files
-- "Tests" are smoke scripts (`test-connector-cookies.ts`, `probe-pts.ts`) requiring live PTS
-- `audit-pdf-integrity.js` is a batch script, not a regression harness
-
-**Impact:** Every orchestration change is validated only by multi-hour live runs. This directly caused today's instability pattern: fix A breaks B; discover hours later.
+**Impact:** Orchestration **refactors** (Guides 04–05) are safer than before; **behavior-preserving** capture split still needs live smoke (`--limit 1`) because Playwright paths lack unit tests.
 
 ### 4. CDP coordination is implicit, not modeled
 

@@ -9,7 +9,7 @@ Automate `params.json` capture for `modelYear < 2003` vehicles so the fleet does
 > **CRITICAL:** Read before implementation.
 
 * **Policy:** `docs/2026-07-08_pipeline_inventory_and_action_items.md` § Pre-2003 automation
-* **Runtime context:** `docs/2026-07-08_pipeline_runtime_observations.md` — defer legacy until modern `needs_params` drained
+* **Runtime context:** `docs/2026-07-08_pipeline_runtime_observations.md` — defer legacy until modern `needs_params` drained; § Broken tabs for CDP timeout UX; § Broken tabs for CDP contention symptoms
 * **Modern capture (must complete first):** Dev Guide 05 → `src/capture/`
 * **Current monolith behavior:** `scripts/capture-params.ts` lines 681–688 defer `<2003`; `--include-legacy` only **includes** them in target list — **no legacy navigation**
 * **Placeholder trap:** `buildParams()` sets `pre_2003.alphabeticalIndexURL` to `https://www.fordservicecontent.com/pubs/content/.....` — `src/index.ts` and `src/readConfig.ts` **reject** this at download time

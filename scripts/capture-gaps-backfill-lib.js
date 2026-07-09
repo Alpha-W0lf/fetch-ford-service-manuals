@@ -6,6 +6,7 @@ const {
   buildExistingPathIndex,
   fileExistsForGap,
 } = require("./path-resolve-lib");
+const { isOrphanLogBackfillGap } = require("../lib/capture-gaps-rules");
 
 function workshopGapId(docId) {
   return `workshop:${docId}`;
@@ -260,7 +261,7 @@ function auditVehicle(root, outputDir, vehicleId) {
   }
 
   return merged.filter((g) => {
-    if (g.source === "log-backfill" && !g.expectedFile) return false;
+    if (isOrphanLogBackfillGap(g)) return false;
     if (!g.expectedFile) return true;
     return !fileExistsForGap(fullRoot, g.expectedFile, pathIndex);
   });

@@ -1,6 +1,7 @@
 import { readdir, stat } from "fs/promises";
 import { join } from "path";
-import { fileExistsNonEmpty, sanitizeName } from "./utils";
+import { pathColonDashVariants, sanitizeName } from "../lib/path-resolve";
+import { fileExistsNonEmpty } from "./utils";
 
 async function countPdfsUnder(dir: string): Promise<number> {
   let n = 0;
@@ -21,15 +22,7 @@ async function countPdfsUnder(dir: string): Promise<number> {
   return n;
 }
 
-/** Legacy downloads may use `:` where sanitized paths use `-` (or vice versa). */
-export function pathColonDashVariants(relPath: string): string[] {
-  const variants = new Set([relPath]);
-  variants.add(relPath.replace(/(\d+)- /g, "$1: "));
-  variants.add(relPath.replace(/(\d+): /g, "$1- "));
-  variants.add(relPath.replace(/: /g, "- "));
-  variants.add(relPath.replace(/- /g, ": "));
-  return [...variants];
-}
+export { pathColonDashVariants };
 
 /** True when a non-empty file exists at expectedFile or a colon/dash path variant. */
 export async function fileExistsAtRelPath(

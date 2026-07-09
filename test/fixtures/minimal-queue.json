@@ -1,0 +1,37 @@
+{
+  "cookieFile": "templates/cookieString.txt",
+  "parallel": 2,
+  "defaults": {
+    "workshop": true,
+    "wiring": true
+  },
+  "vehicles": [
+    {
+      "id": "2018-f-150",
+      "label": "2018 F-150",
+      "tier": 1,
+      "priority": 1,
+      "paramsFile": "vehicles/2018-f-150/params.json",
+      "outputDir": "manuals/2018-f-150",
+      "status": "pending"
+    },
+    {
+      "id": "2012-ranger",
+      "label": "2012 Ranger",
+      "tier": 2,
+      "priority": 5,
+      "paramsFile": "vehicles/2012-ranger/params.json",
+      "outputDir": "manuals/2012-ranger",
+      "status": "incomplete"
+    },
+    {
+      "id": "1999-f-150",
+      "label": "1999 F-150",
+      "tier": 1,
+      "priority": 2,
+      "paramsFile": "vehicles/1999-f-150/params.json",
+      "outputDir": "manuals/1999-f-150",
+      "status": "needs_params"
+    }
+  ]
+}

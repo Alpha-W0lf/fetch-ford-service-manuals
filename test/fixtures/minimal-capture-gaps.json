@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-08T00:00:00.000Z",
+  "gaps": [
+    {
+      "id": "toc-1",
+      "section": "workshop",
+      "name": "TOC audit gap",
+      "relativePath": "Workshop/x",
+      "expectedFile": "Workshop/x/missing.pdf",
+      "reason": "auth",
+      "error": "403",
+      "attempts": 1,
+      "lastAttemptAt": "2026-07-08T00:00:00.000Z",
+      "source": "toc-audit"
+    },
+    {
+      "id": "log-orphan",
+      "section": "workshop",
+      "name": "Log orphan",
+      "relativePath": "",
+      "expectedFile": "",
+      "reason": "error",
+      "error": "from log",
+      "attempts": 1,
+      "lastAttemptAt": "2026-07-08T00:00:00.000Z",
+      "source": "log-backfill",
+      "docId": "DOC123"
+    },
+    {
+      "id": "conn-1",
+      "section": "wiring-connector",
+      "name": "Connector A",
+      "relativePath": "Wiring/Connector Views",
+      "expectedFile": "Wiring/Connector Views/A.pdf",
+      "reason": "timeout",
+      "error": "timeout",
+      "attempts": 3,
+      "lastAttemptAt": "2026-07-08T00:00:00.000Z",
+      "source": "connector-audit"
+    },
+    {
+      "id": "runtime-1",
+      "section": "workshop",
+      "name": "Runtime gap",
+      "relativePath": "Workshop/y",
+      "expectedFile": "Workshop/y/missing.pdf",
+      "reason": "network",
+      "error": "ECONNRESET",
+      "attempts": 1,
+      "lastAttemptAt": "2026-07-08T00:00:00.000Z"
+    }
+  ]
+}

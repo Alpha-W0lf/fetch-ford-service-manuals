@@ -5,21 +5,26 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.join(__dirname, "..");
-const LOCK_DIR = path.join(ROOT, "logs/cdp-chrome.lock");
+const DEFAULT_LOCK_DIR = path.join(ROOT, "logs/cdp-chrome.lock");
 
-function lockInfo() {
-  if (!fs.existsSync(LOCK_DIR)) return null;
+function resolveLockDir(lockDir) {
+  return lockDir || process.env.FORD_CDP_LOCK_DIR || DEFAULT_LOCK_DIR;
+}
+
+function lockInfo(lockDir) {
+  const dir = resolveLockDir(lockDir);
+  if (!fs.existsSync(dir)) return null;
   try {
-    const holder = fs.readFileSync(path.join(LOCK_DIR, "holder"), "utf8").trim();
-    const pid = fs.readFileSync(path.join(LOCK_DIR, "pid"), "utf8").trim();
+    const holder = fs.readFileSync(path.join(dir, "holder"), "utf8").trim();
+    const pid = fs.readFileSync(path.join(dir, "pid"), "utf8").trim();
     return { holder, pid };
   } catch {
     return { holder: "unknown", pid: "?" };
   }
 }
 
-function isLocked() {
-  return fs.existsSync(LOCK_DIR);
+function isLocked(lockDir) {
+  return fs.existsSync(resolveLockDir(lockDir));
 }
 
 function isPidAlive(pid) {
@@ -33,14 +38,12 @@ function isPidAlive(pid) {
   }
 }
 
-function removeStaleLockIfNeeded() {
-  if (!fs.existsSync(LOCK_DIR)) return false;
-  const info = lockInfo();
+function removeStaleLockIfNeeded(lockDir) {
+  const dir = resolveLockDir(lockDir);
+  if (!fs.existsSync(dir)) return false;
+  const info = lockInfo(dir);
   if (info && isPidAlive(info.pid)) return false;
-  console.warn(
-    `[cdp-lock] removing stale lock (holder=${info?.holder || "?"}, pid=${info?.pid || "?"})`
-  );
-  fs.rmSync(LOCK_DIR, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true });
   return true;
 }
 
@@ -51,25 +54,23 @@ function sleepMs(ms) {
   }
 }
 
-function acquire(holder, maxWaitMs = 0) {
+function acquire(holder, maxWaitMs = 0, lockDir) {
+  const dir = resolveLockDir(lockDir);
   const start = Date.now();
   while (true) {
-    removeStaleLockIfNeeded();
+    removeStaleLockIfNeeded(dir);
     try {
-      fs.mkdirSync(LOCK_DIR);
-      fs.writeFileSync(path.join(LOCK_DIR, "holder"), `${holder}\n`);
-      fs.writeFileSync(path.join(LOCK_DIR, "pid"), `${process.pid}\n`);
+      fs.mkdirSync(dir);
+      fs.writeFileSync(path.join(dir, "holder"), `${holder}\n`);
+      fs.writeFileSync(path.join(dir, "pid"), `${process.pid}\n`);
       fs.writeFileSync(
-        path.join(LOCK_DIR, "since"),
+        path.join(dir, "since"),
         `${new Date().toISOString()}\n`
       );
       return true;
     } catch {
       if (maxWaitMs > 0 && Date.now() - start < maxWaitMs) {
-        const info = lockInfo();
-        console.log(
-          `[cdp-lock] waiting for ${info?.holder || "holder"} (${Math.round((Date.now() - start) / 1000)}s)...`
-        );
+        const info = lockInfo(dir);
         const remaining = maxWaitMs - (Date.now() - start);
         sleepMs(Math.min(5000, remaining));
         continue;
@@ -79,34 +80,37 @@ function acquire(holder, maxWaitMs = 0) {
   }
 }
 
-function release(holder) {
-  if (!fs.existsSync(LOCK_DIR)) return;
+function release(holder, lockDir) {
+  const dir = resolveLockDir(lockDir);
+  if (!fs.existsSync(dir)) return;
   try {
-    const current = fs.readFileSync(path.join(LOCK_DIR, "holder"), "utf8").trim();
+    const current = fs.readFileSync(path.join(dir, "holder"), "utf8").trim();
     if (holder && current !== holder) return;
   } catch {
     /* release anyway */
   }
-  fs.rmSync(LOCK_DIR, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true });
 }
 
-function waitUntilFree(maxWaitMs = 600000) {
+function waitUntilFree(maxWaitMs = 600000, lockDir) {
+  const dir = resolveLockDir(lockDir);
   const start = Date.now();
-  while (isLocked()) {
-    if (removeStaleLockIfNeeded()) continue;
+  while (isLocked(dir)) {
+    if (removeStaleLockIfNeeded(dir)) continue;
     if (Date.now() - start >= maxWaitMs) return false;
-    const info = lockInfo();
-    console.log(`[cdp-lock] held by ${info?.holder || "?"} — waiting...`);
     sleepMs(5000);
   }
   return true;
 }
 
 module.exports = {
-  LOCK_DIR,
+  LOCK_DIR: DEFAULT_LOCK_DIR,
+  resolveLockDir,
   isLocked,
   lockInfo,
+  isPidAlive,
   acquire,
   release,
   waitUntilFree,
+  removeStaleLockIfNeeded,
 };

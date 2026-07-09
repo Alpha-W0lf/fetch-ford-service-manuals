@@ -1,5 +1,9 @@
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
+import {
+  hasQueueBlockingGaps,
+  queueBlockingGapCount,
+} from "../lib/capture-gaps-rules";
 import { fileExistsAtRelPath } from "./pathResolve";
 
 export const CAPTURE_GAPS_FILE = "capture-gaps.json";
@@ -30,26 +34,6 @@ export interface CaptureGapsFile {
   version: 1;
   updatedAt: string;
   gaps: CaptureGap[];
-}
-
-const HYBRID_COMPLETE_MAX_GAPS = parseInt(
-  process.env.HYBRID_COMPLETE_MAX_GAPS || "5",
-  10
-);
-const HYBRID_COMPLETE_MIN_ATTEMPTS = parseInt(
-  process.env.HYBRID_COMPLETE_MIN_ATTEMPTS || "3",
-  10
-);
-
-function isHybridCompleteEligible(gaps: CaptureGap[]): boolean {
-  const blocking = gaps.filter((g) => g.source !== "toc-audit");
-  if (blocking.length === 0) return true;
-  if (blocking.length > HYBRID_COMPLETE_MAX_GAPS) return false;
-  return blocking.every(
-    (g) =>
-      g.source === "connector-audit" &&
-      (g.attempts || 0) >= HYBRID_COMPLETE_MIN_ATTEMPTS
-  );
 }
 
 function emptyFile(): CaptureGapsFile {
@@ -87,16 +71,13 @@ export default class CaptureGaps {
     return this.data.gaps.length > 0;
   }
 
-  /** Gaps that should block verify/complete — excludes informational toc-audit and hybrid-eligible connector gaps. */
+  /** Gaps that should block verify/complete — excludes informational toc-audit, orphan log-backfill, and hybrid-eligible connector gaps. */
   hasBlockingGaps(): boolean {
-    const blocking = this.data.gaps.filter((g) => g.source !== "toc-audit");
-    if (blocking.length === 0) return false;
-    return !isHybridCompleteEligible(this.data.gaps);
+    return hasQueueBlockingGaps(this.data.gaps);
   }
 
   blockingCount(): number {
-    if (isHybridCompleteEligible(this.data.gaps)) return 0;
-    return this.data.gaps.filter((g) => g.source !== "toc-audit").length;
+    return queueBlockingGapCount(this.data.gaps);
   }
 
   async record(partial: Omit<CaptureGap, "attempts" | "lastAttemptAt">): Promise<void> {

@@ -3,58 +3,23 @@
  */
 const fs = require("fs");
 const path = require("path");
+const rules = require("../lib/capture-gaps-rules");
 
 const CAPTURE_GAPS_FILE = "capture-gaps.json";
 const TOC_AUDIT_REPORT_FILE = "toc-audit-report.json";
 
-/** Hybrid complete: tolerate a few exhausted connector-audit gaps (see env). */
-const HYBRID_COMPLETE_MAX_GAPS = parseInt(
-  process.env.HYBRID_COMPLETE_MAX_GAPS || "5",
-  10
-);
-const HYBRID_COMPLETE_MIN_ATTEMPTS = parseInt(
-  process.env.HYBRID_COMPLETE_MIN_ATTEMPTS || "3",
-  10
-);
+const {
+  isBlockingGap,
+  blockingGaps,
+  isHybridCompleteEligible,
+  hasQueueBlockingGaps,
+  queueBlockingGapCount,
+  parseHybridMaxGaps,
+  parseHybridMinAttempts,
+} = rules;
 
-/** TOC leaf audit gaps are informational — not queue-blocking (many 403 on CDN). */
-function isBlockingGap(gap) {
-  if (gap?.source === "toc-audit") return false;
-  // Log-scraped rows without a resolvable path are not actionable.
-  if (gap?.source === "log-backfill" && !gap?.expectedFile) return false;
-  return true;
-}
-
-function blockingGaps(gaps) {
-  return (gaps || []).filter(isBlockingGap);
-}
-
-/**
- * Queue may treat vehicle as complete when only a few connector-audit gaps remain
- * and each has been attempted at least HYBRID_COMPLETE_MIN_ATTEMPTS times.
- * Gaps remain in capture-gaps.json for visibility.
- */
-function isHybridCompleteEligible(gaps) {
-  const blocking = blockingGaps(gaps);
-  if (blocking.length === 0) return true;
-  if (blocking.length > HYBRID_COMPLETE_MAX_GAPS) return false;
-  return blocking.every(
-    (g) =>
-      g.source === "connector-audit" &&
-      (g.attempts || 0) >= HYBRID_COMPLETE_MIN_ATTEMPTS
-  );
-}
-
-/** True when gaps should block queue status / verify / worker priority. */
-function hasQueueBlockingGaps(gaps) {
-  const blocking = blockingGaps(gaps);
-  if (blocking.length === 0) return false;
-  return !isHybridCompleteEligible(gaps);
-}
-
-function queueBlockingGapCount(gaps) {
-  return hasQueueBlockingGaps(gaps) ? blockingGaps(gaps).length : 0;
-}
+const HYBRID_COMPLETE_MAX_GAPS = parseHybridMaxGaps();
+const HYBRID_COMPLETE_MIN_ATTEMPTS = parseHybridMinAttempts();
 
 function gapsFilePath(root, outputDir) {
   return path.join(root, outputDir, CAPTURE_GAPS_FILE);

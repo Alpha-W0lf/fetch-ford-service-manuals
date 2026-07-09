@@ -37,6 +37,8 @@ Entry: `./scripts/start-bulk-in-terminal.sh` → `bulk-download.sh` (lock + trap
 
 Logic lives in `lib/bulk-orchestrator-lib.js` (tested). Do not start orchestrator from Cursor/agent shells.
 
+**Stall symptoms (RUN-01):** orchestrator pid alive, `yarn workers: 0`, queue rows stuck `downloading` — see [2026-07-09_bulk_stall_root_cause_investigation.md](./2026-07-09_bulk_stall_root_cause_investigation.md). Fix: [Dev Guide 04.1](./dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md).
+
 ---
 
 | Task | Command |

@@ -44,7 +44,7 @@ Phase G from context assessment: pre-commit hooks, watchdog removal, `pipeline-h
 | Question | Answer |
 |----------|--------|
 | Append RUN-01 fix to Guide 04? | **No** — Guide 04 executed; use **04.1** |
-| Ready for Guide 04.1 code? | **Yes**, after bulk stopped + Tom says "follow dev guide 04.1" |
+| Ready for Guide 04.1 code? | **Yes** — pass 2 verified; say "follow dev guide 04.1" after bulk stopped |
 | More planning passes for Guide 05? | **No** — ready when capture stopped |
 | Ready for Guide 05 code? | **Yes**, after capture stopped + Tom says "follow dev guide 05" |
 | Ready for Guide 06? | **No** — needs Guide 05 executed + operator-filled `legacy_pts_capture.md` |

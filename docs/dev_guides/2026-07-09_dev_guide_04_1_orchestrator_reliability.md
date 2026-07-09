@@ -10,70 +10,102 @@ Make the bulk orchestrator **self-recovering** under parallel workers by removin
 
 * **Root cause investigation:** [../2026-07-09_bulk_stall_root_cause_investigation.md](../2026-07-09_bulk_stall_root_cause_investigation.md) (RUN-01)
 * **Issue registry:** [../known_issues_and_backlog.md](../known_issues_and_backlog.md) — RUN-01, RUN-02
-* **Parent guide (executed):** [2026-07-08_dev_guide_04_orchestrator_split.md](./2026-07-08_dev_guide_04_orchestrator_split.md) — **do not reopen**; this guide is the follow-up logical unit
-* **Architecture:** `docs/reference/architecture.md`, `docs/reference/cdp_tab_hygiene.md`
-* **Orchestrator:** `lib/bulk-orchestrator-lib.js`, `scripts/bulk-orchestrator.js`
-* **Worker prune (keep):** `src/index.ts` line ~270 — `await pruneOrphanCdpTabs()` after wiring
-* **Shutdown prune (keep):** `scripts/bulk-download.sh` `cleanup` trap — fire-and-forget on exit only
-* **Tests baseline:** `test/bulk-orchestrator.test.ts` (9 tests; **68** total)
+* **Parent guide (executed):** [2026-07-08_dev_guide_04_orchestrator_split.md](./2026-07-08_dev_guide_04_orchestrator_split.md) — **do not reopen**; follow-up logical unit only
+* **Architecture:** `docs/reference/architecture.md`, `docs/reference/cdp_tab_hygiene.md`, `docs/reference/queue_state_machine.md`
+* **Orchestrator:** `lib/bulk-orchestrator-lib.js` (668 lines), `scripts/bulk-orchestrator.js`
+* **Disk verify:** `lib/bulk-download-status.js` — `resolveDownloadStatus`, `verifyDownloadOk`
+* **Worker prune (keep):** `src/index.ts` ~line 270 — `await pruneOrphanCdpTabs()` after wiring
+* **Shutdown prune (keep):** `scripts/bulk-download.sh` `cleanup` trap line 60 — on exit only
+* **Tests:** `test/bulk-orchestrator.test.ts` (9 tests); **68** total (`yarn test` verified 2026-07-09)
 * **Agent:** `AGENTS.md` — smallest correct change; bulk **stopped** for implementation
+* **Ops:** `docs/PIPELINE_OPS.md` — Terminal.app start path
 * **Execution workflow:** `second_brain/docs/guides/prompt_follow_dev_guide.md`
 
-**Gate:** Bulk **stopped** (stalled or deliberate stop) + `yarn test` green before start.
+**Gate:** Bulk **stopped** (stalled or deliberate stop) + `yarn test` green + `node scripts/reconcile-queue.js` once.
 
-**Why not append to Guide 04?** Guide 04 is **executed** and scoped to bash→Node parity split. RUN-01 is a distinct reliability gap found in live soak. Per `meta_creating_dev_guides.md`, one logical unit per guide.
+**Why not append to Guide 04?** Guide 04 is **executed** (bash→Node parity). RUN-01 is a distinct reliability gap. Per `meta_creating_dev_guides.md`: one logical unit per guide.
 
 ---
 
 ## 🏗️ Architectural Pattern
 
-> **Pattern:** Non-blocking worker lifecycle + PID-aware reap  
-> **Flow:** `spawn yarn` → track `pid` → `await close` → disk verify → `markStatus` — **no orchestrator prune in between**  
-> **Constraint:** Never `spawnSync` CDP/Playwright work on the orchestrator hot path while `PARALLEL > 1`.
+> **Pattern:** Non-blocking worker lifecycle + disk-truth stale reap  
+> **Flow:** `spawn yarn` → track `pid` → `await close` → disk verify → `markStatus` — **no orchestrator prune**  
+> **Constraint:** Never `spawnSync` CDP/Playwright on the parallel worker completion path.
 
-### Root cause (verified)
+### Root cause (verified RUN-01)
 
 ```
 runOne(A) finishes yarn → spawnSync(prune) BLOCKS Node event loop
   → worker B close handler never runs
   → inFlight stuck (done=false) × PARALLEL
-  → startWorkers blocked; reapWorkers ineffective
+  → startWorkers blocked; reapWorkers ineffective (requires done=true)
 ```
 
-### Target flow (after fix)
+### Target flow
 
 ```
-orchestratorTick
-  → reapStaleWorkers()     # dead pid → fixOrphanDownloading, free slot
-  → reapWorkers()          # done=true entries
-  → startWorkers()         # dispatch if slots free
+orchestratorTick / waitForInFlight
+  → reapStaleWorkers()     # dead pid → patch queue from disk, free slot
+  → reapWorkers()          # remove done=true entries, count failures
 
 runOne
-  → spawnYarnStart (track pid + manual resolve hook for stale reap)
-  → await yarn exit
+  → spawnYarnStart(entry)  # track pid + _resolveWorker
+  → if entry.reaped → return (queue already patched)
   → disk verify + markStatus
-  → (no orchestrator prune)
 ```
 
 ### Prune responsibility matrix (after fix)
 
-| Caller | When | Keep? |
-|--------|------|-------|
-| `src/index.ts` | End of each `yarn start` wiring phase | **Yes** — worker-owned, async |
-| `bulk-orchestrator-lib.js` `runOne` | After each worker | **Remove** — caused RUN-01 |
-| `bulk-download.sh` `cleanup` trap | Orchestrator exit | **Yes** — shutdown hygiene only |
+| Caller | When | Action |
+|--------|------|--------|
+| `src/index.ts` | End of each `yarn start` wiring | **Keep** — async worker prune |
+| `bulk-orchestrator-lib.js` `runOne` | After each worker | **Delete** — caused RUN-01 |
+| `bulk-download.sh` `cleanup` trap | Orchestrator exit | **Keep** — shutdown only |
+
+### Code map (verified line numbers 2026-07-09)
+
+| Symbol | File:lines | Change |
+|--------|------------|--------|
+| `pruneCdpTabs` | `bulk-orchestrator-lib.js:287-300` | **Delete** function + call at :398 |
+| `spawnYarnStart` | `:306-325` | Add `entry` param; pid + `_resolveWorker` |
+| `runOne` | `:331-435` | Add `entry` param; remove prune; `reaped` guard |
+| `reapWorkers` | `:461-474` | Unchanged |
+| `startWorkers` | `:490-516` | Pass `entry` to `runOne` |
+| `orchestratorTick` | `:563-605` | Call `reapStaleWorkers` first |
+| `waitForInFlight` | `:437-449` | Call `reapStaleWorkers` in wait loop |
+| `module.exports` | `:652-668` | Export `reapStaleWorkers`, `patchStaleWorkerFromDisk` |
 
 ---
 
-## Design decisions (resolved — do not re-debate in implementation)
+## Design decisions (resolved)
 
 | Question | Decision | Rationale |
 |----------|----------|-----------|
-| Remove vs async orchestrator prune? | **Remove** from `runOne` | Worker already prunes; duplicate caused CDP dogpile + blocking |
-| PID tracking? | **Yes** — `entry.pid` + `entry._resolveWorker` | Enables stale reap when `close` never fires |
-| `spawnSync` elsewhere in orchestrator? | **Keep** for reconcile/preflight/cookies — idle or startup only | Not on parallel worker completion path |
-| New env flag to re-enable orchestrator prune? | **No** | Simplicity; worker + shutdown trap sufficient |
-| `browser.close()` timeout in `pruneOrphanCdpTabs`? | **Yes** — Step 4 optional hardening | Prevents worker-side prune hangs (RUN-02); bounded `finally` |
+| Remove vs async orchestrator prune? | **Remove** | Worker already prunes; duplicate caused CDP dogpile + blocking |
+| Stale reap status source? | **Disk truth** via `resolveDownloadStatus` | `yarn start` exits **0** even with gaps (`index.ts:375`); hardcoding `exitCode=1` would mark `incomplete` as `failed` |
+| PID tracking? | **Yes** — `entry.pid`, `entry._resolveWorker`, `entry.reaped` | Unblock `spawnYarnStart` when stale; prevent double `markStatus` |
+| Delete `pruneCdpTabs` function? | **Yes** | Only caller is `runOne` (:398); not exported |
+| `spawnSync` elsewhere? | **Keep** | reconcile/preflight/cookies — startup/idle only |
+| `browser.close()` timeout in prune? | **Yes — in scope** (Step 4) | RUN-02 hung prunes 33min+; bounds worker/shutdown prune |
+| New env flag for orchestrator prune? | **No** | Simplicity |
+
+### Stale reap status mapping (critical — do not use `fixOrphanDownloading` with `exitCode=1` blindly)
+
+`yarn start` exits `0` when gaps exist but logs "Capture incomplete". `resolveFinalVehicleStatus(1, 'incomplete')` → **`failed`** (wrong).
+
+Add **`patchStaleWorkerFromDisk(config, vehicleId, deps)`**:
+
+```javascript
+// Pseudocode — map disk only, no yarn exit code
+const meta = readVehicleQueueStatus(config.queuePath, vehicleId);
+const disk = resolveDownloadStatus(config.root, meta.v.outputDir, meta.workshop, meta.wiring);
+const status = disk === "complete" ? "complete" : disk === "incomplete" ? "incomplete" : "failed";
+patchVehicleStatus(config.queuePath, vehicleId, status);
+return { status, exitCode: status === "complete" ? 0 : 1 };
+```
+
+Use this from `reapStaleWorkers`, not `fixOrphanDownloading(..., 1, ...)`.
 
 ---
 
@@ -81,93 +113,103 @@ runOne
 
 ### Step 0: Preflight — HARD GATE
 
-* [ ] Bulk **stopped** — kill hung prune children if orchestrator frozen (see investigation doc)
-* [ ] `node scripts/reconcile-queue.js` — fix orphaned `downloading` rows on disk
-* [ ] `yarn test` green (68 baseline)
+* [ ] Bulk **stopped** — if frozen (RUN-01): kill orchestrator's prune child (`pgrep -P <orchestrator-pid>`), then stop orchestrator (Ctrl+C in bulk Terminal or `kill <pid>`)
+* [ ] `pkill -f 'prune-cdp-tabs'` only if needed — **capture may be running**; prefer killing PPID-specific children first
+* [ ] `node scripts/reconcile-queue.js` — fix orphaned `downloading` on disk
+* [ ] `yarn test` green (**68** baseline)
 * [ ] Read investigation doc + this guide end-to-end
 
-### Step 1: Remove blocking prune from `runOne` (primary fix)
+### Step 1: Remove blocking prune (primary fix — can ship alone for stall relief)
 
-* [ ] Delete `pruneCdpTabs(config, deps)` call from `runOne()` after `spawnYarnStart` (~line 398)
-* [ ] **Keep** `pruneCdpTabs` function for now OR delete if unused — grep confirms only `runOne` + tests
-* [ ] Add one-line orchestrator log if useful: `[prune] skipped in orchestrator (worker prunes in index.ts)`
-* [ ] **Do not** remove worker prune in `src/index.ts` or shutdown trap in `bulk-download.sh`
+* [ ] Delete `pruneCdpTabs(config, deps)` call at `runOne` line **398**
+* [ ] Delete entire `pruneCdpTabs` function (lines **287-300**) — no remaining callers
+* [ ] **Do not** remove worker prune (`src/index.ts`) or shutdown trap (`bulk-download.sh:60`)
 
-### Step 2: PID-aware `inFlight` entries
+### Step 2: `lib/process-alive.js` + exports
 
-* [ ] Extend `inFlight` entry shape:
-
-```javascript
-// { vid, done, exitCode, pid, _resolveWorker }
-```
-
-* [ ] Refactor `spawnYarnStart` to accept `entry` (or callback object):
-  * Set `entry.pid = child.pid` on spawn
-  * Store `entry._resolveWorker = finish` where `finish(code)` resolves promise once (idempotent)
-  * `child.on('close', …)` and `child.on('error', …)` call `finish`
-* [ ] Update `startWorkers` to pass `entry` into `runOne(config, job, deps, state, entry)`
-
-### Step 3: `reapStaleWorkers` (belt-and-suspenders)
-
-* [ ] Add `lib/process-alive.js`:
+* [ ] Create `lib/process-alive.js`:
 
 ```javascript
 function isProcessAlive(pid) {
   if (!pid || pid <= 0) return false;
-  try { process.kill(pid, 0); return true; } catch { return false; }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
+module.exports = { isProcessAlive };
 ```
 
-* [ ] Add `reapStaleWorkers(config, state, deps)`:
-  * For each `inFlight` entry where `!done && pid && !isProcessAlive(pid)`:
-    * `fixOrphanDownloading(config, entry.vid, 1, deps)` — disk-truth queue patch
-    * `entry.exitCode = 1`; `entry.done = true`
-    * `entry._resolveWorker?.(1)` — unblock zombie `runOne` promise if waiting
-    * Log: `[reap-stale] ${vid} worker pid ${pid} dead — slot freed`
-* [ ] Call `reapStaleWorkers` at **start** of `orchestratorTick`, before `reapWorkers`
-* [ ] Export for tests
+* [ ] `test/process-alive.test.ts` — current pid alive; `999999999` dead
 
-### Step 4: Harden `pruneOrphanCdpTabs` shutdown (optional, same PR)
+### Step 3: PID-aware `spawnYarnStart` + `runOne` entry
 
-* [ ] In `src/cdpConnectorPage.ts` `finally` block — wrap `cdpBrowser?.close()` in `Promise.race` with **10s** timeout (constant or `CDP_DISCONNECT_TIMEOUT_MS` env default 10000)
-* [ ] On timeout: log warn, continue — do not throw
-* [ ] Prevents worker/shutdown prune subprocess hangs (RUN-02)
+* [ ] `inFlight` entry shape: `{ vid, done, exitCode, pid, reaped, _resolveWorker }`
+* [ ] `spawnYarnStart(config, yarnArgs, logPath, entry, deps)`:
+  * `let settled = false`; `finish(code)` idempotent resolve
+  * `entry.pid = child.pid`; `entry._resolveWorker = finish`
+  * `child.on('close'|'error')` → `finish`
+* [ ] `runOne(config, job, deps, orchestratorState, entry)` — **5th param optional** for tests
+* [ ] After `await spawnYarnStart(...)`: `if (entry?.reaped) return entry.exitCode ?? 1;`
+* [ ] `startWorkers`: pass `entry` into `runOne(config, job, deps, state, entry)`
 
-### Step 5: Tests
+### Step 4: `patchStaleWorkerFromDisk` + `reapStaleWorkers`
 
-* [ ] `test/process-alive.test.ts` — `isProcessAlive` for current pid vs bogus pid
-* [ ] `test/bulk-orchestrator.test.ts` additions:
-  * **stale worker reap:** mock spawn with pid; kill pid simulation via `isProcessAlive` mock; assert `inFlight` cleared and queue patched
-  * **parallel completion:** two `runOne` with delayed yarn close — assert both complete without `spawnSync` prune mock blocking event loop
-  * **runOne no longer calls prune spawnSync:** assert `spawnSync` not invoked with `prune-cdp-tabs` in args during `runOne`
-* [ ] `yarn test` green — baseline 68 + new tests
+* [ ] `patchStaleWorkerFromDisk(config, vehicleId, deps)` — disk-truth mapping (see Design decisions)
+* [ ] `reapStaleWorkers(config, state, deps)`:
+  * For each `inFlight` where `!done && pid && !isProcessAlive(pid)`:
+    * `{ status, exitCode } = patchStaleWorkerFromDisk(...)` (only if queue still `downloading`)
+    * `entry.reaped = true`; `entry.done = true`; `entry.exitCode = exitCode`
+    * `entry._resolveWorker?.(exitCode)`
+    * Log: `[reap-stale] ${vid} pid ${pid} dead → ${status}`
+* [ ] Wire into **`orchestratorTick`** (before `reapWorkers`) **and** **`waitForInFlight`** wait loop
+* [ ] Export from `module.exports`
 
-### Step 6: Docs
+### Step 5: Harden `pruneOrphanCdpTabs` disconnect (RUN-02 — same PR)
 
-* [ ] `docs/reference/architecture.md` — orchestrator worker lifecycle paragraph (no post-worker prune)
-* [ ] `docs/reference/env_vars.md` — `CDP_DISCONNECT_TIMEOUT_MS` if Step 4 added
-* [ ] `docs/known_issues_and_backlog.md` — mark RUN-01 fix **planned → executed** after soak
-* [ ] `docs/2026-07-09_bulk_stall_root_cause_investigation.md` — link to this guide; status → fix planned
-* [ ] Guide 04 — add "Follow-up" pointer only (do not uncheck executed items)
+* [ ] `src/cdpConnectorPage.ts` `finally`: wrap `cdpBrowser?.close()` in `Promise.race` with **10s** timeout
+* [ ] Constant `CDP_DISCONNECT_TIMEOUT_MS` env default **10000** (document in `env_vars.md`)
+* [ ] On timeout: `console.warn`, continue — never throw
+* [ ] Optional: same pattern for `createConnectorPage` `close()` path if needed (out of scope unless hang reproduces)
 
-### Step 7: Verification (operator)
+### Step 6: Tests (`test/bulk-orchestrator.test.ts`)
 
-* [ ] Restart bulk: `./scripts/start-bulk-in-terminal.sh` (Terminal.app only)
-* [ ] `PARALLEL=2` — two workers complete; orchestrator log shows OK/INCOMPLETE/FAIL lines (not stuck at START)
-* [ ] Simulate stale worker: optional — kill one `yarn start` mid-job; within one `orchestratorTick` (~5s) slot frees and new worker dispatches
-* [ ] Capture may continue in parallel — no regression
-* [ ] 30+ min soak with connector-heavy vehicle — no orchestrator freeze
+* [ ] **stale reap:** entry with dead pid mock → queue patched `incomplete` from disk gaps (not `failed`)
+* [ ] **stale reap:** disk complete → queue `complete`
+* [ ] **reaped guard:** `runOne` after `_resolveWorker` + `reaped` does not double-`markStatus`
+* [ ] **no prune spawnSync:** `runOne` never calls `spawnSync` with `prune-cdp-tabs` in args
+* [ ] **parallel:** two mocked yarn children complete without blocking (no prune in deps)
+* [ ] Update `runOne` test if signature changes (5th param optional — existing test still passes)
+* [ ] `yarn test` green — expect **73+** tests (68 + ~5 new)
+
+### Step 7: Docs
+
+* [ ] `docs/reference/architecture.md` — worker lifecycle: no post-worker orchestrator prune; stale reap
+* [ ] `docs/reference/env_vars.md` — `CDP_DISCONNECT_TIMEOUT_MS`
+* [ ] `docs/PIPELINE_OPS.md` — stall symptoms + recovery one-liner → investigation doc
+* [ ] After soak: `known_issues_and_backlog.md` RUN-01 → executed
+
+### Step 8: Operator verification
+
+* [ ] `./scripts/start-bulk-in-terminal.sh` (Terminal.app only)
+* [ ] `PARALLEL=2` — orchestrator logs OK/INCOMPLETE/FAIL after each START (not stuck)
+* [ ] Optional: `kill -9` one `yarn start` mid-job → slot frees within ~5s (`orchestratorTick` sleep)
+* [ ] Capture may run in parallel — no regression
+* [ ] 30+ min connector-heavy soak — no freeze
 
 ---
 
 ## ✅ Verification & Definition of Done
 
-* [ ] No `spawnSync(prune)` on `runOne` completion path
-* [ ] `reapStaleWorkers` unit tested — dead pid frees slot + patches queue
-* [ ] Parallel workers complete independently (no event-loop block on worker A blocking B)
+* [ ] No `pruneCdpTabs` in codebase (grep clean)
+* [ ] `reapStaleWorkers` + `patchStaleWorkerFromDisk` unit tested
+* [ ] Stale incomplete disk → queue `incomplete` (not `failed`)
+* [ ] `waitForInFlight` calls `reapStaleWorkers` (shutdown path)
 * [ ] `yarn test` green
-* [ ] Live restart: bulk dispatches after prior stall; queue `downloading` rows cleared
-* [ ] Worker prune in `index.ts` unchanged; shutdown trap unchanged
+* [ ] Live restart after RUN-01 stall dispatches workers
+* [ ] Worker + shutdown prune unchanged
 
 ---
 
@@ -175,41 +217,43 @@ function isProcessAlive(pid) {
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| CDP tab accumulation without orchestrator prune | Low | Worker prunes per job; shutdown trap prunes on exit; monitor tab count |
-| Stale reap marks wrong status | Medium | Use `fixOrphanDownloading` + disk verify (existing Guide 04 logic) |
-| Double `markStatus` if zombie `runOne` completes after stale reap | Medium | `finish()` idempotent; `runOne` checks `entry.done` before final `markStatus` OR skip mark if queue no longer `downloading` |
-| Removing prune exposes different CDP bug | Low | Worker-side prune still runs; Step 4 bounds disconnect |
-| Regression in Guide 04 soak behaviors | Medium | Do not change spawn args, circuit breaker, cookie refresh |
+| CDP tab accumulation without orchestrator prune | Low | Worker prunes per job; shutdown trap; monitor Chrome tabs |
+| Stale reap wrong status | **High** if exitCode=1 used | **Disk-truth** `patchStaleWorkerFromDisk` (documented above) |
+| Double `markStatus` after stale reap | Medium | `entry.reaped` guard in `runOne` |
+| Zombie `runOne` after reap | Low | `_resolveWorker` idempotent; early return if `reaped` |
+| Removing prune exposes CDP bug | Low | Step 5 bounds disconnect; worker prune retained |
+| Guide 04 regression (spawn args, circuit breaker) | Medium | Do not touch cookie/circuit/spawn flags |
+| `pkill prune` kills capture-related process | Low | Prefer `pgrep -P <orchestrator-pid>` over global pkill |
 
-**Rollback:** `git revert`; restart bulk from Terminal.app.
+**Rollback:** `git revert`; `node scripts/reconcile-queue.js`; `./scripts/start-bulk-in-terminal.sh`.
 
-**Safe during active bulk:** **NO** (implementation gate).
+**Safe during active bulk:** **NO** (implementation).
 
-**Safe during active capture:** **Yes** — capture is separate process; restart bulk after deploy.
+**Safe during active capture:** **Yes** — restart bulk after deploy; capture independent.
 
 ---
 
 ## Strangler order (mandatory)
 
-1. Tests first for `isProcessAlive` + `reapStaleWorkers` (red)
-2. Remove `pruneCdpTabs` from `runOne`
-3. PID tracking in `spawnYarnStart` + `entry` passthrough
-4. Implement `reapStaleWorkers` + wire into `orchestratorTick`
-5. Green tests
-6. Optional Step 4 (`cdpConnectorPage` disconnect timeout)
+1. `lib/process-alive.js` + tests
+2. **Remove** `pruneCdpTabs` (immediate stall fix if deployed alone)
+3. `patchStaleWorkerFromDisk` + `reapStaleWorkers` + tests (red → green)
+4. PID tracking in `spawnYarnStart` + `reaped` guard
+5. Wire `reapStaleWorkers` into `orchestratorTick` + `waitForInFlight`
+6. Step 5 `cdpConnectorPage` disconnect timeout
 7. Docs + operator soak
 
 ---
 
-## Out of scope (defer)
+## Out of scope
 
-* Orchestrator heartbeat logging (P2 — Phase G)
-* Consolidating triple prune into single service
-* Splitting `bulk-orchestrator-lib.js` (~668 lines) — separate optional guide
-* `maybePeriodicMaintenance` while `inFlight` has only dead PIDs — addressed by `reapStaleWorkers` instead
+* Orchestrator heartbeat (P2 / Phase G)
+* Single prune service abstraction
+* Split `bulk-orchestrator-lib.js` size
+* Changing `yarn start` to exit non-zero on gaps
 
 ---
 
-**Status:** **Implementation-ready** (2026-07-09)  
-**Depends on:** Dev Guide 04 (**executed**), investigation doc  
-**Blocks:** None — Guide 05 capture modularization is independent
+**Status:** **Implementation-ready** (pass 2 — 2026-07-09)  
+**Depends on:** Guide 04 executed, investigation doc  
+**Blocks:** None (Guide 05 independent)

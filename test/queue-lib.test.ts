@@ -2,7 +2,14 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it } from "vitest";
-import { isQueued, queueRank, sortQueued } from "../scripts/queue-lib";
+import {
+  isQueued,
+  isStaleIncomplete,
+  isStaleIncompleteFromGaps,
+  queueRank,
+  sortQueued,
+  STALE_GAP_ATTEMPTS,
+} from "../scripts/queue-lib";
 
 describe("queue-lib", () => {
   const tmpRoots: string[] = [];
@@ -27,6 +34,18 @@ describe("queue-lib", () => {
     return root;
   }
 
+  const blockingGap = (attempts: number) => ({
+    id: "g1",
+    section: "workshop",
+    name: "Missing",
+    relativePath: "x",
+    expectedFile: "Workshop/x.pdf",
+    reason: "network",
+    error: "fail",
+    attempts,
+    lastAttemptAt: new Date().toISOString(),
+  });
+
   it("isQueued excludes needs_params", () => {
     const root = mkRootWithGaps([]);
     expect(isQueued({ status: "needs_params", outputDir: "x" }, root)).toBe(
@@ -35,15 +54,55 @@ describe("queue-lib", () => {
     expect(isQueued({ status: "pending", outputDir: "x" }, root)).toBe(true);
   });
 
+  it("isStaleIncompleteFromGaps false when no blocking gaps", () => {
+    expect(isStaleIncompleteFromGaps([])).toBe(false);
+    expect(
+      isStaleIncompleteFromGaps([
+        { source: "toc-audit", expectedFile: "x.pdf", attempts: 99 },
+      ])
+    ).toBe(false);
+  });
+
+  it("isStaleIncompleteFromGaps false when blocking gaps under attempt threshold", () => {
+    const gaps = [blockingGap(STALE_GAP_ATTEMPTS - 1)];
+    expect(isStaleIncompleteFromGaps(gaps)).toBe(false);
+  });
+
+  it("isStaleIncompleteFromGaps true when all blocking gaps exhausted", () => {
+    const gaps = [
+      blockingGap(STALE_GAP_ATTEMPTS),
+      blockingGap(STALE_GAP_ATTEMPTS + 2),
+    ];
+    expect(isStaleIncompleteFromGaps(gaps)).toBe(true);
+  });
+
+  it("isStaleIncomplete reads gaps from disk", () => {
+    const root = mkRootWithGaps([blockingGap(STALE_GAP_ATTEMPTS)]);
+    expect(
+      isStaleIncomplete(root, "manuals/test-vehicle")
+    ).toBe(true);
+  });
+
+  it("queueRank deprioritizes stale incomplete vs fresh incomplete", () => {
+    const staleRoot = mkRootWithGaps([blockingGap(STALE_GAP_ATTEMPTS)]);
+    const freshRoot = mkRootWithGaps([blockingGap(1)]);
+    const staleVehicle = {
+      status: "incomplete",
+      tier: 2,
+      outputDir: "manuals/test-vehicle",
+    };
+    const freshVehicle = {
+      status: "incomplete",
+      tier: 2,
+      outputDir: "manuals/test-vehicle",
+    };
+    expect(queueRank(freshVehicle, freshRoot)).toBeLessThan(
+      queueRank(staleVehicle, staleRoot)
+    );
+  });
+
   it("queueRank prioritizes fresh incomplete tier 1 over tier 2", () => {
-    const root = mkRootWithGaps([
-      {
-        id: "g1",
-        source: "connector-audit",
-        expectedFile: "a.pdf",
-        attempts: 1,
-      },
-    ]);
+    const root = mkRootWithGaps([blockingGap(1)]);
     const tier1 = {
       status: "incomplete",
       tier: 1,

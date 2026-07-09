@@ -2,7 +2,11 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it } from "vitest";
-import { patchVehicleStatus } from "../lib/patch-queue.js";
+import {
+  acquirePatchLock,
+  patchVehicleStatus,
+  releasePatchLock,
+} from "../lib/patch-queue.js";
 
 function sampleQueue() {
   return {
@@ -44,6 +48,7 @@ describe("patch-queue", () => {
     expect(q.vehicles.find((v: { id: string }) => v.id === "v-b").status).toBe(
       "pending"
     );
+    expect(fs.existsSync(`${file}.patch-lock`)).toBe(false);
   });
 
   it("throws when vehicle id missing", () => {
@@ -53,7 +58,7 @@ describe("patch-queue", () => {
     );
   });
 
-  it("sequential patches to different vehicles both persist", async () => {
+  it("sequential patches to different vehicles all persist", () => {
     const file = queueFile();
     patchVehicleStatus(file, "v-a", "downloading");
     patchVehicleStatus(file, "v-b", "complete");
@@ -66,21 +71,36 @@ describe("patch-queue", () => {
     );
   });
 
-  it("concurrent patches always leave valid JSON (atomic rename)", async () => {
+  it("interleaved patches via Promise.all all persist (serialized lock)", async () => {
     const file = queueFile();
     await Promise.all([
       Promise.resolve().then(() => patchVehicleStatus(file, "v-a", "downloading")),
       Promise.resolve().then(() => patchVehicleStatus(file, "v-b", "complete")),
       Promise.resolve().then(() => patchVehicleStatus(file, "v-c", "pending")),
     ]);
-    const raw = fs.readFileSync(file, "utf8");
-    expect(() => JSON.parse(raw)).not.toThrow();
-    const q = JSON.parse(raw);
-    expect(q.vehicles).toHaveLength(3);
-    // Last-writer-wins on whole file — at least one patch must be visible.
-    const statuses = q.vehicles.map((v: { status: string }) => v.status);
-    expect(statuses.some((s: string) => s !== "pending" && s !== "needs_params")).toBe(
-      true
+    const q = JSON.parse(fs.readFileSync(file, "utf8"));
+    expect(q.vehicles.find((v: { id: string }) => v.id === "v-a").status).toBe(
+      "downloading"
     );
+    expect(q.vehicles.find((v: { id: string }) => v.id === "v-b").status).toBe(
+      "complete"
+    );
+    expect(q.vehicles.find((v: { id: string }) => v.id === "v-c").status).toBe(
+      "pending"
+    );
+  });
+
+  it("second acquire times out while lock held, succeeds after release", async () => {
+    const file = queueFile();
+    expect(acquirePatchLock(file)).toBe(true);
+
+    const blocked = new Promise<boolean>((resolve) => {
+      setImmediate(() => resolve(acquirePatchLock(file, 100)));
+    });
+    await expect(blocked).resolves.toBe(false);
+
+    releasePatchLock(file);
+    expect(acquirePatchLock(file)).toBe(true);
+    releasePatchLock(file);
   });
 });

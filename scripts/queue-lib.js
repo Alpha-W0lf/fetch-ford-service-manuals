@@ -30,13 +30,17 @@ function isQueued(v, root) {
  * True when every open gap has been retried at least STALE_GAP_ATTEMPTS times
  * without resolving — likely a permanent bug, not a transient failure.
  */
-function isStaleIncomplete(root, outputDir) {
-  const gaps = readCaptureGaps(root, outputDir).gaps;
+function isStaleIncompleteFromGaps(gaps) {
   if (!hasQueueBlockingGaps(gaps)) return false;
   const blocking = blockingGaps(gaps);
   if (!blocking.length) return false;
   const minAttempts = Math.min(...blocking.map((g) => g.attempts || 0));
   return minAttempts >= STALE_GAP_ATTEMPTS;
+}
+
+function isStaleIncomplete(root, outputDir) {
+  const gaps = readCaptureGaps(root, outputDir).gaps;
+  return isStaleIncompleteFromGaps(gaps);
 }
 
 /**
@@ -103,6 +107,7 @@ module.exports = {
   STALE_GAP_ATTEMPTS,
   pdfCount,
   isQueued,
+  isStaleIncompleteFromGaps,
   isStaleIncomplete,
   queueRank,
   sortQueued,

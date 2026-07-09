@@ -94,7 +94,7 @@ Headless workshop/wiring **do not** acquire `cdp-chrome.lock`.
 
 **Tab hygiene:** `src/cdpConnectorPage.ts` prunes per [cdp_tab_hygiene.md](./cdp_tab_hygiene.md). Each `yarn start` worker prunes at job end; orchestrator does **not** prune after workers (Guide 04.1 — avoids blocking `spawnSync` on the parallel completion path). Shutdown prune runs from `bulk-download.sh` cleanup trap only.
 
-**Worker lifecycle (Guide 04.1):** `startWorkers` tracks `{ vid, pid, done, reaped }` per slot. `orchestratorTick` calls `reapStaleWorkers` before `reapWorkers` — dead yarn PIDs patch queue status from **disk truth** (`patchStaleWorkerFromDisk`), not yarn exit code. Fleet reconcile while workers run stays disabled; per-vehicle stale reap handles orphaned `downloading` rows.
+**Worker lifecycle (Guide 04.1 + 04.2):** `startWorkers` tracks `{ vid, pid, done, reaped, startedAt, logPath }` per slot. Each tick: `reapHungWorkers` (alive+log-stale or max runtime) → `reapStaleWorkers` (dead PID) → `reapWorkers` → `reapOrphanPrunes` — forced kills patch queue from **disk truth** (`patchStaleWorkerFromDisk`), not yarn exit code. Heartbeat `[heartbeat]` lines emit when workers are in-flight. Fleet reconcile while workers run stays disabled; per-vehicle reaps handle orphaned `downloading` rows.
 
 **Incident lesson (2026-07-08):** Aggressive tab prune during an active connector job closed a live tab → worker error. Prune rules are now conservative.
 

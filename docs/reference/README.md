@@ -24,6 +24,7 @@
 - [../2026-07-08_codebase_foundation_context_assessment.md](../2026-07-08_codebase_foundation_context_assessment.md)
 - [../known_issues_and_backlog.md](../known_issues_and_backlog.md) — **issue & tech-debt registry**
 - [../dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md](../dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md) — RUN-01 fix (**executed** `6c15180`)
-- [../dev_guides/README.md](../dev_guides/README.md) — implementation blueprints (01–04.1 executed; 05–06 planned)
+- [../dev_guides/2026-07-09_dev_guide_04_2_unsupervised_reliability.md](../dev_guides/2026-07-09_dev_guide_04_2_unsupervised_reliability.md) — REL unsupervised fix (**executed** 2026-07-09)
+- [../dev_guides/README.md](../dev_guides/README.md) — implementation blueprints (01–04.2 executed; 05–06 planned)
 
 **Agent invariants:** [../../AGENTS.md](../../AGENTS.md)

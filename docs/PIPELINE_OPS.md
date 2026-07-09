@@ -37,7 +37,7 @@ Entry: `./scripts/start-bulk-in-terminal.sh` → `bulk-download.sh` (lock + trap
 
 Logic lives in `lib/bulk-orchestrator-lib.js` (tested). Do not start orchestrator from Cursor/agent shells.
 
-**Stall symptoms (RUN-01):** orchestrator pid alive, `yarn workers: 0`, queue rows stuck `downloading` — **fixed** Guide 04.1 (`6c15180`). If recurrence: see [investigation](./2026-07-09_bulk_stall_root_cause_investigation.md). Hung-**alive** workers: [REL-01](./known_issues_and_backlog.md) → Guide 04.2.
+**Stall symptoms (RUN-01):** orchestrator pid alive, `yarn workers: 0`, queue rows stuck `downloading` — **fixed** Guide 04.1 (`6c15180`). If recurrence: see [investigation](./2026-07-09_bulk_stall_root_cause_investigation.md). Hung-**alive** workers: [REL-01](./known_issues_and_backlog.md) — **fixed** Guide 04.2 (2026-07-09).
 
 ---
 
@@ -72,7 +72,7 @@ Logic lives in `lib/bulk-orchestrator-lib.js` (tested). Do not start orchestrato
 
 ## Foundation work
 
-Dev guides: [dev_guides/README.md](./dev_guides/README.md) — Guides 01–04 executed; **04.1 implementation-ready**; 05–06 planned.
+Dev guides: [dev_guides/README.md](./dev_guides/README.md) — Guides 01–04.2 executed; 05–06 planned.
 
 Context assessment: [2026-07-08_codebase_foundation_context_assessment.md](./2026-07-08_codebase_foundation_context_assessment.md).
 

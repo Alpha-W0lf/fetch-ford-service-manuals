@@ -21,6 +21,10 @@ Implementation: `lib/bulk-orchestrator-lib.js`, `lib/bulk-circuit-breaker.js`, `
 | `CIRCUIT_BREAKER_THRESHOLD` | `2` | Auth failures before backoff |
 | `CIRCUIT_BREAKER_BACKOFF_SEC` | `600` | Pause after auth circuit trip |
 | `STALE_GAP_ATTEMPTS` | `10` | Deprioritize stale `incomplete` |
+| `WORKER_LOG_STALE_MS` | `1200000` | Kill alive worker if vehicle log mtime older than this (`0` = off) — Guide 04.2 |
+| `WORKER_MAX_RUNTIME_MS` | `14400000` | Kill worker after wall-clock runtime since `downloading` (`0` = off) |
+| `WORKER_KILL_GRACE_MS` | `5000` | Wait after SIGTERM before SIGKILL on hung worker |
+| `PRUNE_ORPHAN_MAX_AGE_MIN` | `30` | Reap orphan `prune-cdp-tabs` processes older than this (`0` = off) |
 | `EXCLUDE_CSV` | — | Comma-separated vehicle IDs to skip (internal; in-flight workers) |
 
 ---
@@ -100,6 +104,15 @@ Implementation: `lib/bulk-orchestrator-lib.js`, `lib/bulk-circuit-breaker.js`, `
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `COOKIE_REFRESH_SEC` | `10800` | Loop interval (3h) |
+
+---
+
+## Watchdog (`scripts/ensure-bulk-running.sh`)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `WATCHDOG_COOLDOWN_SEC` | `600` | Min seconds between auto-restarts |
+| `WATCHDOG_STALL_WORKERS_MIN` | `20` | Treat as stall when bulk running, 0 yarn workers, queue has `downloading`, and latest bulk log mtime older than this (minutes) |
 
 ---
 

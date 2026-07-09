@@ -95,7 +95,7 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 |---|------|-----|------------|------------------|-------------------|--------|
 | **P0** | **Never start bulk from Cursor terminal**; use `./scripts/start-bulk-in-terminal.sh` | Only proven stable supervisor path | Low | Bulk stops; lost download hours | None | ✅ Documented |
 | **P0** | Keep PTS Chrome open (`:9222`) + Mac plugged in | Connectors + cookie refresh | Low | Connector/auth failures | None | Ongoing |
-| **P0** | **Unsupervised reliability (REL-01)** — hung-alive worker wall clock + log stale reap | Worker can block slot hours while alive | Medium | Wasted subscription hours | Wrong kill threshold | **Guide 04.2** — plan in checkpoint |
+| **P0** | **Unsupervised reliability (REL-01)** — hung-alive worker wall clock + log stale reap | Worker can block slot hours while alive | Medium | Wasted subscription hours | Wrong kill threshold | **Guide 04.2** — **executed** 2026-07-09 |
 | **P0** | Run param capture in parallel | Drain needs_params | Medium | 10 still blocked | CDP contention | **Retry pass done** — REL-02 clean exit |
 | **P1** | **E-Transit capture** — PTS menu missing model for 2022/23 | Tier-1 blocked; matchers insufficient | Medium | 3 tier-1 vehicles | Wrong workaround | **Open — RUN-06** |
 | **P1** | **Pre-2003 automated capture** (not manual DevTools) | 3 vehicles now; fleet will grow | Medium | Pre-2003 stays blocked | Scope creep mid-sprint | **Backlog — Guide 06** |

@@ -2,8 +2,8 @@
 
 **Date:** 2026-07-08  
 **Author:** AI session (Tom-directed)  
-**Status:** Context gathering complete · Dev Guides **01–04.1 executed** · Guide **05 implementation-ready** · Guide **04.2 plan** (unsupervised reliability) · Guide **06 plan only**  
-**Next step:** **Guide 04.2** when bulk stopped (REL-01); Guide 05 when capture stopped
+**Status:** Context gathering complete · Dev Guides **01–04.2 executed** · Guide **05 implementation-ready** · Guide **06 plan only**  
+**Next step:** Guide 05 when capture stopped; 4h+ soak for 04.2
 
 **Workflow position:** Phase 5 output from `meta_context_gathering.md` — foundation hardening initiative (not a Jira ticket).
 

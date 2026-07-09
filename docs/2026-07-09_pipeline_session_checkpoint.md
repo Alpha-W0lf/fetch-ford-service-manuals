@@ -166,11 +166,22 @@ Guide 04.1 was **necessary** for parallel orchestration. It is **not sufficient*
 
 ---
 
-## Guide 04.2 — planning outline (not implementation-ready)
+## Guide 04.2 — executed (2026-07-09)
 
-**Working title:** Orchestrator unsupervised reliability (hung-alive reap + worker wall clock)
+**Dev guide:** [dev_guides/2026-07-09_dev_guide_04_2_unsupervised_reliability.md](./dev_guides/2026-07-09_dev_guide_04_2_unsupervised_reliability.md)
 
-**Scope (proposed):**
+**Shipped:** `reapHungWorkers`, heartbeat, orphan prune reaper, capture CDP disconnect (REL-02), watchdog stall detection. **84** tests green.
+
+**Operator:** Restart bulk when ready: `./scripts/start-bulk-in-terminal.sh` — watch for `[heartbeat]` and `[reap-hung]` in bulk log. Full 4h+ soak pending.
+
+---
+
+## Guide 04.2 — implementation-ready (superseded)
+
+**Working title:** Orchestrator unsupervised reliability — **see dev guide** (implementation-ready)
+
+<details>
+<summary>Legacy outline (superseded)</summary>
 
 1. `WORKER_MAX_RUNTIME_MS` env (e.g. 4h default) — orchestrator sends SIGTERM to yarn child, then SIGKILL; `patchStaleWorkerFromDisk`
 2. `reapHungWorkers` — alive PID but vehicle log mtime stale > `WORKER_LOG_STALE_MS` (e.g. 15–30 min)
@@ -195,9 +206,11 @@ Guide 04.1 was **necessary** for parallel orchestration. It is **not sufficient*
 
 **Dependency:** Guide 04.1 executed (`6c15180`).
 
+</details>
+
 ---
 
-## Implementation plan refinements
+## Guide 04.2 — legacy outline (collapsed)
 
 | Prior plan | Refinement |
 |------------|------------|
@@ -217,7 +230,7 @@ Guide 04.1 was **necessary** for parallel orchestration. It is **not sufficient*
 |-------|--------|
 | 01–04 | Executed |
 | **04.1** | **Executed** (`6c15180`, 2026-07-09) — RUN-01 early soak positive |
-| **04.2** (proposed) | **Plan only** — unsupervised reliability; context in this doc |
+| **04.2** | **Executed** (2026-07-09) — hung reap, heartbeat, orphan prune, capture exit, watchdog stall detect |
 | 05 | Implementation-ready — after capture stopped |
 | 06 | Plan — needs 05 + `legacy_pts_capture.md` |
 | Phase G | Watchdog, hooks, consolidation — post-subscription or maintenance window |
@@ -226,11 +239,12 @@ Guide 04.1 was **necessary** for parallel orchestration. It is **not sufficient*
 
 ## Open questions (engineering / product)
 
-1. **Worker max runtime:** 2h vs 4h vs 8h default for connector-heavy jobs?
-2. **Log stale threshold:** 15 min vs 30 min before hung-alive kill?
-3. **Watchdog:** Prove launchd path vs accept Terminal-only supervision (OPS-02)?
-4. **E-Transit:** Skip tier-1, manual params, or alternate PTS entry (RUN-06)?
-5. **Tier-1 incomplete policy:** Always gap-retry vs accept `incomplete` and move on?
+1. ~~**Worker max runtime:** 2h vs 4h vs 8h default~~ → **Resolved in 04.2:** `WORKER_MAX_RUNTIME_MS=14400000` (4h), tunable
+2. ~~**Log stale threshold:** 15 min vs 30 min~~ → **Resolved in 04.2:** `WORKER_LOG_STALE_MS=1200000` (20 min); 15 min too aggressive given 2016 TCM ~9 min freeze that recovered
+3. ~~**Guide 05 vs 04.2 order**~~ → **04.2 first** for unsupervised bulk; 05 when capture stopped
+4. **Watchdog:** Prove launchd path vs accept Terminal-only supervision (OPS-02)? — Phase G; 04.2 adds stall **detection** only
+5. **E-Transit:** Skip tier-1, manual params, or alternate PTS entry (RUN-06)?
+6. **Tier-1 incomplete policy:** Always gap-retry vs accept `incomplete` and move on?
 
 ---
 
@@ -238,4 +252,4 @@ Guide 04.1 was **necessary** for parallel orchestration. It is **not sufficient*
 
 | Date | Update |
 |------|--------|
-| 2026-07-09 | Initial checkpoint — Guide 04.1 executed, soak evidence, REL gaps, 04.2 outline |
+| 2026-07-09 | Guide 04.2 executed — unsupervised reliability; 84 tests |

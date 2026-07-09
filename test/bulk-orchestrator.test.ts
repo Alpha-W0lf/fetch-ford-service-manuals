@@ -5,12 +5,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   circuitBreakerBlocksStart,
   fixOrphanDownloading,
+  getVehicleLogMtime,
   idleLimitTicks,
   inFlightExcludeCsv,
+  logHeartbeat,
   orchestratorTick,
   patchStaleWorkerFromDisk,
   resolveFinalVehicleStatus,
   runOne,
+  reapHungWorkers,
   reapWorkers,
   reapStaleWorkers,
 } from "../lib/bulk-orchestrator-lib.js";
@@ -129,6 +132,10 @@ describe("bulk-orchestrator-lib", () => {
       skipBackfillOnStart: true,
       logDir: path.join(root, "logs"),
       recent403File: path.join(root, "logs/recent-403-stamps.txt"),
+      workerLogStaleMs: 1200000,
+      workerMaxRuntimeMs: 14400000,
+      workerKillGraceMs: 5000,
+      pruneOrphanMaxAgeMin: 30,
     };
   }
 
@@ -564,5 +571,182 @@ describe("bulk-orchestrator-lib", () => {
       args.some((a) => String(a).includes("prune-cdp-tabs"))
     );
     expect(pruneCalls).toHaveLength(0);
+  });
+
+  it("reapHungWorkers kills alive worker with stale log and patches incomplete", async () => {
+    const root = mkRoot();
+    const outputDir = "manuals/hung-stale";
+    mkIncompleteManual(root, outputDir);
+    const logPath = path.join(root, "logs/hung-v.log");
+    const staleTime = Date.now() - 30 * 60 * 1000;
+    fs.writeFileSync(logPath, "stale log\n");
+    fs.utimesSync(logPath, staleTime / 1000, staleTime / 1000);
+
+    const queuePath = writeQueue(root, [
+      {
+        id: "hung-v",
+        outputDir,
+        status: "downloading",
+      },
+    ]);
+    const config = {
+      ...baseConfig(root, queuePath),
+      workerLogStaleMs: 60_000,
+      workerMaxRuntimeMs: 0,
+      workerKillGraceMs: 0,
+    };
+    const state = {
+      failures: 0,
+      inFlight: [
+        {
+          vid: "hung-v",
+          done: false,
+          exitCode: null,
+          pid: 4242,
+          reaped: false,
+          startedAt: Date.now() - 1000,
+          logPath,
+          _resolveWorker: null as ((code: number) => void) | null,
+        },
+      ],
+      idleTicks: 0,
+      lastCookieRefresh: 0,
+      lastReconcile: 0,
+      lastPdfAudit: 0,
+      backoffUntil: 0,
+      shutdownRequested: false,
+    };
+
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true as never);
+    await reapHungWorkers(config, state as never, {
+      log: () => {},
+      sleep: async () => {},
+      isProcessAlive: () => true,
+      statSync: (p: string) => fs.statSync(p),
+    } as never);
+
+    expect(killSpy).toHaveBeenCalled();
+    killSpy.mockRestore();
+    expect(state.inFlight[0].done).toBe(true);
+    expect(state.inFlight[0].reaped).toBe(true);
+    const q = JSON.parse(fs.readFileSync(queuePath, "utf8"));
+    expect(q.vehicles[0].status).toBe("incomplete");
+  });
+
+  it("reapHungWorkers reaps pre-spawn entry on max runtime without pid", async () => {
+    const root = mkRoot();
+    const outputDir = "manuals/pre-spawn";
+    mkIncompleteManual(root, outputDir);
+    const queuePath = writeQueue(root, [
+      {
+        id: "pre-v",
+        outputDir,
+        status: "downloading",
+      },
+    ]);
+    const config = {
+      ...baseConfig(root, queuePath),
+      workerLogStaleMs: 0,
+      workerMaxRuntimeMs: 1000,
+      workerKillGraceMs: 0,
+    };
+    const state = {
+      failures: 0,
+      inFlight: [
+        {
+          vid: "pre-v",
+          done: false,
+          exitCode: null,
+          pid: null,
+          reaped: false,
+          startedAt: Date.now() - 5000,
+          logPath: path.join(root, "logs/pre-v.log"),
+          _resolveWorker: null as ((code: number) => void) | null,
+        },
+      ],
+    };
+
+    await reapHungWorkers(config, state as never, {
+      log: () => {},
+      sleep: async () => {},
+      isProcessAlive: () => false,
+    } as never);
+
+    expect(state.inFlight[0].done).toBe(true);
+    expect(state.inFlight[0].reaped).toBe(true);
+    const q = JSON.parse(fs.readFileSync(queuePath, "utf8"));
+    expect(q.vehicles[0].status).toBe("incomplete");
+  });
+
+  it("reapHungWorkers runs before reapStaleWorkers on dead pid", async () => {
+    const root = mkRoot();
+    const outputDir = "manuals/reap-order";
+    mkIncompleteManual(root, outputDir);
+    const queuePath = writeQueue(root, [
+      { id: "order-v", outputDir, status: "downloading" },
+    ]);
+    const config = {
+      ...baseConfig(root, queuePath),
+      workerLogStaleMs: 0,
+      workerMaxRuntimeMs: 1000,
+      workerKillGraceMs: 0,
+    };
+    const entry = {
+      vid: "order-v",
+      done: false,
+      exitCode: null,
+      pid: 77,
+      reaped: false,
+      startedAt: Date.now() - 5000,
+      logPath: path.join(root, "logs/order-v.log"),
+      _resolveWorker: null as ((code: number) => void) | null,
+    };
+    const state = { failures: 0, inFlight: [entry] };
+
+    await reapHungWorkers(config, state as never, {
+      log: () => {},
+      sleep: async () => {},
+      isProcessAlive: () => false,
+    } as never);
+    expect(entry.reaped).toBe(true);
+
+    reapStaleWorkers(config, state as never, {
+      log: () => {},
+      isProcessAlive: () => false,
+    } as never);
+    expect(entry.done).toBe(true);
+  });
+
+  it("logHeartbeat emits inFlight summary", () => {
+    const root = mkRoot();
+    const queuePath = writeQueue(root, []);
+    const config = baseConfig(root, queuePath);
+    const logLines: string[] = [];
+    const state = {
+      inFlight: [
+        {
+          vid: "hb-v",
+          pid: 12,
+          startedAt: Date.now() - 10_000,
+          logPath: path.join(root, "logs/hb-v.log"),
+        },
+      ],
+    };
+    fs.writeFileSync(state.inFlight[0].logPath, "x\n");
+    logHeartbeat(config, state as never, {
+      log: (...args: unknown[]) => logLines.push(args.join(" ")),
+      statSync: (p: string) => fs.statSync(p),
+    } as never);
+    expect(logLines.some((l) => l.includes("[heartbeat]"))).toBe(true);
+    expect(logLines.some((l) => l.includes("hb-v"))).toBe(true);
+  });
+
+  it("getVehicleLogMtime returns null for missing log", () => {
+    const root = mkRoot();
+    expect(
+      getVehicleLogMtime(path.join(root, "logs/missing.log"), {
+        statSync: (p: string) => fs.statSync(p),
+      } as never)
+    ).toBeNull();
   });
 });

@@ -33,12 +33,12 @@
 
 | ID | P | Gap | Failure mode | Planned fix |
 |----|---|-----|--------------|-------------|
-| **REL-01** | **P0** | **Hung-alive worker** | Yarn PID lives, log frozen, slot blocked (2016 TCM ~9 min @ 99% CPU) | **Guide 04.2** — log stale + wall clock; kill + `patchStaleWorkerFromDisk` |
-| **REL-02** | P1 | **Capture no clean exit** | Session done but pid 29405 idle 2.5h+ | Guide 05 or 04.2.1 — `process.exit(0)` after pass summary |
-| **REL-03** | P1 | **Orphan prune reaper** | Old `prune-cdp-tabs` survive hours, compete for CDP | Guide 04.2 or Phase G — reap PIDs not under live orchestrator |
-| **REL-04** | P0 | **No proven auto-supervisor** | Orchestrator crash → bulk stops | Phase G — OPS-02/03 |
-| **REL-05** | P1 | **No orchestrator heartbeat** | Can't tell stall vs slow from bulk log | Guide 04.2 — OPS-06 |
-| **REL-06** | P1 | **No per-job wall clock** | `yarn start` unbounded runtime | Guide 04.2 — `WORKER_MAX_RUNTIME_MS` |
+| **REL-01** | **P0** | **Hung-alive worker** | Yarn PID lives, log frozen, slot blocked (2016 TCM ~9 min @ 99% CPU) | **Guide 04.2** executed — `reapHungWorkers` |
+| **REL-02** | P1 | **Capture no clean exit** | Session done but node process idle | **Guide 04.2** Tier B — CDP `browser.close()` disconnect |
+| **REL-03** | P1 | **Orphan prune reaper** | Old `prune-cdp-tabs` survive hours, compete for CDP | **Guide 04.2** — `lib/orphan-prune-reaper.js` |
+| **REL-04** | P0 | **No proven auto-supervisor** | Orchestrator crash → bulk stops | Phase G — OPS-02/03; **04.2** stall detection in `ensure-bulk-running.sh` |
+| **REL-05** | P1 | **No orchestrator heartbeat** | Can't tell stall vs slow from bulk log | **Guide 04.2** executed — `[heartbeat]` lines |
+| **REL-06** | P1 | **No per-job wall clock** | `yarn start` unbounded runtime | **Guide 04.2** — `WORKER_MAX_RUNTIME_MS` |
 | **REL-07** | P2 | **PTS/session drift** | 403s, UI timeouts | Cookie refresh + queue retry (mitigated, not eliminated) |
 
 ---
@@ -125,8 +125,8 @@
 
 | Track | Scope | Priority |
 |-------|-------|----------|
-| **Guide 04.2** | Unsupervised reliability — hung-alive reap, worker wall clock, heartbeat, orphan prune reaper | **P0** — plan in [checkpoint](./2026-07-09_pipeline_session_checkpoint.md) |
-| **Guide 05** | Capture modularization + clean exit (REL-02) | P1 — implementation-ready |
+| **Guide 04.2** | Unsupervised reliability — hung reap, heartbeat, orphan prune, capture exit, watchdog stall detect | **P0** — **executed** (2026-07-09) |
+| **Guide 05** | Capture modularization | P1 — implementation-ready |
 | **Guide 06** | Pre-2003 legacy capture | After 05 + `legacy_pts_capture.md` filled |
 | **Phase G** | Watchdog, pre-commit, health consolidation | Post-subscription or maintenance window |
 | **Guide 07** (not authored) | E-Transit PTS availability / alternate capture path | If tier-1 blocked |
@@ -138,8 +138,8 @@
 1. **Watchdog:** Prove launchd (OPS-02) vs accept Terminal-only supervision?
 2. **Tier-1 incomplete policy:** Always gap-retry vs accept `incomplete` and move on?
 3. **E-Transit:** Skip tier-1, manual params, or alternate PTS navigation (RUN-06)?
-4. **Worker timeouts (04.2):** Default `WORKER_MAX_RUNTIME_MS` and `WORKER_LOG_STALE_MS` values?
-5. **Guide 05 vs 04.2 order:** Unsupervised bulk first, or capture modularization during subscription?
+4. **Worker timeouts (04.2):** Defaults `WORKER_LOG_STALE_MS=20m`, `WORKER_MAX_RUNTIME_MS=4h` — see 04.2 pass 2
+5. ~~**Guide 05 vs 04.2 order**~~ → **04.2 first** (unsupervised bulk P0); 05 after capture stopped
 
 ---
 

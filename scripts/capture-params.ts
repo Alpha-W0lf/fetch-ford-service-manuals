@@ -744,6 +744,9 @@ async function main() {
 
   if (closeOnDone) {
     await browser.close();
+  } else if (connectedViaCdp) {
+    await browser.close().catch(() => undefined);
+    console.log("\nPTS Chrome left open for bulk (Playwright CDP disconnected).");
   } else {
     console.log("\nLeaving your Chrome window open (CDP mode).");
   }

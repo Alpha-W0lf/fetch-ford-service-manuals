@@ -24,6 +24,7 @@
 | 03 | [2026-07-08_dev_guide_03_cdp_coordination.md](./2026-07-08_dev_guide_03_cdp_coordination.md) | Code + tests | **Executed** | Yes |
 | 04 | [2026-07-08_dev_guide_04_orchestrator_split.md](./2026-07-08_dev_guide_04_orchestrator_split.md) | Major refactor | **Executed** (live soak 2026-07-08) | **No** (during impl) |
 | 04.1 | [2026-07-09_dev_guide_04_1_orchestrator_reliability.md](./2026-07-09_dev_guide_04_1_orchestrator_reliability.md) | Reliability fix | **Executed** (2026-07-09) | **No** (during impl) |
+| 04.2 | [2026-07-09_dev_guide_04_2_unsupervised_reliability.md](./2026-07-09_dev_guide_04_2_unsupervised_reliability.md) | Reliability | **Executed** (2026-07-09) | **No** (during impl) |
 | 05 | [2026-07-08_dev_guide_05_capture_modularization.md](./2026-07-08_dev_guide_05_capture_modularization.md) | Refactor | **Implementation-ready** | Yes (bulk can run) |
 | 06 | [2026-07-08_dev_guide_06_legacy_capture.md](./2026-07-08_dev_guide_06_legacy_capture.md) | Feature | **Plan** — needs Guide 05 + [legacy_pts_capture.md](../reference/legacy_pts_capture.md) | After capture restart |
 
@@ -31,13 +32,12 @@
 
 | Item | Scope |
 |------|-------|
-| **04.2** (proposed) | Unsupervised reliability — REL-01/03/05/06; plan in [checkpoint](../2026-07-09_pipeline_session_checkpoint.md) |
-| **Phase G** | Pre-commit hooks, watchdog decision, `pipeline-health.sh` consolidation |
+| **Phase G** | launchd FDA proof, pre-commit hooks, health script consolidation |
 
 ## Dependency graph
 
 ```
-01 (executed) → 02 → 03 → 04 (executed) → 04.1 (executed) → 04.2 (proposed — REL)
+01 (executed) → 02 → 03 → 04 (executed) → 04.1 (executed) → 04.2 (executed)
                       ↘ 05 (implementation-ready) → 06 (plan)
                       ↘ Phase G (watchdog, hooks)
 ```
@@ -48,7 +48,7 @@
 |----------|--------|
 | Append RUN-01 fix to Guide 04? | **No** — Guide 04 executed; use **04.1** |
 | Ready for Guide 04.1 code? | **Done** — executed `6c15180`; early soak positive |
-| Ready for Guide 04.2? | **Plan only** — see [checkpoint](../2026-07-09_pipeline_session_checkpoint.md); author dev guide before implementation |
+| Ready for Guide 04.2? | **Done** — executed 2026-07-09; 84 tests |
 | More planning passes for Guide 05? | **No** — ready when capture stopped |
 | Ready for Guide 05 code? | **Yes**, after capture stopped + Tom says "follow dev guide 05" |
 | Ready for Guide 06? | **No** — needs Guide 05 executed + operator-filled `legacy_pts_capture.md` |

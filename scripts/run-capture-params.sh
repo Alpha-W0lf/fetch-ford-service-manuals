@@ -15,14 +15,15 @@ if ! curl -sf http://127.0.0.1:9222/json/version >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Waiting for CDP lock (bulk connector jobs release it automatically)..."
+echo "CDP coordination: capture yields after ${CDP_LOCK_YIELD_MS:-120}s if bulk holds connector lock, then retries deferred vehicles."
 node -e "
-const { waitUntilFree } = require('./scripts/cdp-chrome-lock');
-if (!waitUntilFree(parseInt(process.env.CDP_LOCK_WAIT_MS || '600000', 10))) {
-  console.error('Timed out waiting for CDP Chrome lock');
-  process.exit(1);
+const { isLocked, lockInfo } = require('./scripts/cdp-chrome-lock');
+if (isLocked()) {
+  const i = lockInfo();
+  console.log('CDP lock currently held by ' + (i && i.holder ? i.holder : '?') + ' — capture will defer busy vehicles and continue');
+} else {
+  console.log('CDP lock free — starting capture-params');
 }
-console.log('CDP lock free — starting capture-params');
 "
 
 exec yarn capture-params --all "$@" 2>&1 | tee "$LOG"

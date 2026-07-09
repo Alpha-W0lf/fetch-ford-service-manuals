@@ -24,6 +24,8 @@ const execFileAsync = promisify(execFile);
 const cdpLock = require("./cdp-chrome-lock") as {
   acquire: (holder: string, maxWaitMs?: number) => boolean;
   release: (holder?: string) => void;
+  isLocked: () => boolean;
+  lockInfo: () => { holder: string; pid: string } | null;
 };
 import { chromium, Page, Frame, Request, Browser, BrowserContext } from "playwright";
 import qs from "qs";
@@ -47,6 +49,8 @@ const CAPTURE_DELAY_SEC = parseInt(process.env.CAPTURE_DELAY_SEC || "4", 10);
 const CAPTURE_PAUSE_EVERY = parseInt(process.env.CAPTURE_PAUSE_EVERY || "25", 10);
 const CAPTURE_PAUSE_SEC = parseInt(process.env.CAPTURE_PAUSE_SEC || "60", 10);
 const CAPTURE_MAX_CONSECUTIVE_FAILS = parseInt(process.env.CAPTURE_MAX_CONSECUTIVE_FAILS || "5", 10);
+/** Per-vehicle CDP wait while bulk holds connector lock; then defer to retry pass. */
+const CDP_LOCK_YIELD_MS = parseInt(process.env.CDP_LOCK_YIELD_MS || "120000", 10);
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -649,15 +653,6 @@ async function main() {
 
   const lockHolder = "capture-params";
   const lockWaitMs = parseInt(process.env.CDP_LOCK_WAIT_MS || "600000", 10);
-  await runCaptureSession(targets, useCdp, lockHolder, lockWaitMs);
-}
-
-async function runCaptureSession(
-  targets: VehicleEntry[],
-  useCdp: boolean,
-  lockHolder: string,
-  lockWaitMs: number
-) {
   const { browser, closeOnDone } = await connectBrowser(useCdp);
   const context = await getBrowserContext(browser, useCdp && browser.contexts().length > 0);
   const page = await getPtsPage(context);
@@ -671,36 +666,106 @@ async function runCaptureSession(
     );
   }
 
+  const firstPass = await runCaptureSession(
+    targets,
+    { page, context, useCdp, lockHolder, lockWaitMs: CDP_LOCK_YIELD_MS, deferOnLockBusy: true }
+  );
+
+  if (firstPass.deferred.length > 0) {
+    console.log(
+      `\n=== CDP retry pass: ${firstPass.deferred.length} vehicle(s) deferred while bulk used connector Chrome ===`
+    );
+    const retry = await runCaptureSession(firstPass.deferred, {
+      page,
+      context,
+      useCdp,
+      lockHolder,
+      lockWaitMs,
+      deferOnLockBusy: false,
+    });
+    console.log(
+      `Retry pass: ${retry.ok} captured, ${retry.fail} failed, ${retry.deferred.length} still deferred`
+    );
+  }
+
+  if (closeOnDone) {
+    await browser.close();
+  } else {
+    console.log("\nLeaving your Chrome window open (CDP mode).");
+  }
+
+  console.log(
+    `\nSession totals: ${firstPass.ok} captured, ${firstPass.fail} failed. Run ./scripts/queue-status.sh to review.`
+  );
+  if (firstPass.ok > 0) {
+    console.log("Bulk will pick up new pending vehicles automatically.");
+  }
+}
+
+async function shouldResetPtsAfterVehicle(useCdp: boolean, lockHeld: boolean): Promise<boolean> {
+  if (!useCdp) return true;
+  if (lockHeld) return true;
+  if (!cdpLock.isLocked()) return true;
+  return false;
+}
+
+interface CaptureSessionOpts {
+  page: Page;
+  context: BrowserContext;
+  useCdp: boolean;
+  lockHolder: string;
+  lockWaitMs: number;
+  deferOnLockBusy: boolean;
+}
+
+async function runCaptureSession(
+  targets: VehicleEntry[],
+  opts: CaptureSessionOpts
+): Promise<{ ok: number; fail: number; deferred: VehicleEntry[] }> {
+  const { page, context, useCdp, lockHolder, lockWaitMs, deferOnLockBusy } = opts;
   let ok = 0;
   let fail = 0;
   let consecutiveFails = 0;
+  const deferred: VehicleEntry[] = [];
 
   console.log(
-    `Pacing: ${CAPTURE_DELAY_SEC}s between vehicles, pause ${CAPTURE_PAUSE_SEC}s every ${CAPTURE_PAUSE_EVERY}, stop after ${CAPTURE_MAX_CONSECUTIVE_FAILS} consecutive fails`
+    `Pacing: ${CAPTURE_DELAY_SEC}s between vehicles, pause ${CAPTURE_PAUSE_SEC}s every ${CAPTURE_PAUSE_EVERY}, stop after ${CAPTURE_MAX_CONSECUTIVE_FAILS} consecutive fails` +
+      (deferOnLockBusy ? `; CDP yield ${Math.round(lockWaitMs / 1000)}s then defer` : `; CDP wait up to ${Math.round(lockWaitMs / 1000)}s`)
   );
 
   for (let i = 0; i < targets.length; i++) {
     const vehicle = targets[i];
     console.log(`\n=== ${vehicle.id} (${vehicle.ptsModel} ${vehicle.modelYear}) ===`);
     let lockHeld = false;
+    let deferredBusy = false;
     try {
       if (useCdp) {
         if (!cdpLock.acquire(lockHolder, lockWaitMs)) {
-          throw new Error(`Timed out waiting for CDP Chrome lock (${lockWaitMs}ms)`);
+          const holder = cdpLock.lockInfo()?.holder || "unknown";
+          if (deferOnLockBusy) {
+            logStep(`CDP busy (${holder}) — deferring to retry pass`);
+            deferred.push(vehicle);
+            deferredBusy = true;
+          } else {
+            throw new Error(`Timed out waiting for CDP Chrome lock (${lockWaitMs}ms)`);
+          }
+        } else {
+          lockHeld = true;
         }
-        lockHeld = true;
       }
-      const params = await captureParams(page, vehicle.modelYear, vehicle.ptsModel, context);
-      const outDir = join(ROOT, "vehicles", vehicle.id);
-      await mkdir(outDir, { recursive: true });
-      const outPath = join(ROOT, vehicle.paramsFile);
-      await writeFile(outPath, JSON.stringify(params, null, 2) + "\n");
-      await patchVehicleStatus(vehicle.id, "pending");
-      ok++;
-      consecutiveFails = 0;
-      console.log(`OK: ${outPath}`);
-      const w = params.workshop as Record<string, string>;
-      console.log(`  book=${w.book} vehicleId=${w.vehicleId} env=${params.wiring.environment}`);
+      if (!deferredBusy) {
+        const params = await captureParams(page, vehicle.modelYear, vehicle.ptsModel, context);
+        const outDir = join(ROOT, "vehicles", vehicle.id);
+        await mkdir(outDir, { recursive: true });
+        const outPath = join(ROOT, vehicle.paramsFile);
+        await writeFile(outPath, JSON.stringify(params, null, 2) + "\n");
+        await patchVehicleStatus(vehicle.id, "pending");
+        ok++;
+        consecutiveFails = 0;
+        console.log(`OK: ${outPath}`);
+        const w = params.workshop as Record<string, string>;
+        console.log(`  book=${w.book} vehicleId=${w.vehicleId} env=${params.wiring.environment}`);
+      }
     } catch (err: any) {
       fail++;
       consecutiveFails++;
@@ -722,16 +787,28 @@ async function runCaptureSession(
       if (lockHeld) cdpLock.release(lockHolder);
     }
 
+    if (deferredBusy) {
+      continue;
+    }
+
     try {
-      await resetPtsSession(page);
+      if (await shouldResetPtsAfterVehicle(useCdp, lockHeld)) {
+        await resetPtsSession(page);
+      } else {
+        logStep("Skipping PTS reset — CDP held by bulk connector job");
+      }
     } catch (resetErr: any) {
-      console.error(`WARN reset after ${vehicle.id}: ${resetErr.message || resetErr}`);
-      consecutiveFails++;
-      if (consecutiveFails >= CAPTURE_MAX_CONSECUTIVE_FAILS) {
-        console.error(
-          `\nStopping: PTS session unhealthy (${resetErr.message || resetErr}). Restart Chrome via launch-pts-chrome.sh and re-run.`
-        );
-        break;
+      if (await shouldResetPtsAfterVehicle(useCdp, lockHeld)) {
+        console.error(`WARN reset after ${vehicle.id}: ${resetErr.message || resetErr}`);
+        consecutiveFails++;
+        if (consecutiveFails >= CAPTURE_MAX_CONSECUTIVE_FAILS) {
+          console.error(
+            `\nStopping: PTS session unhealthy (${resetErr.message || resetErr}). Restart Chrome via launch-pts-chrome.sh and re-run.`
+          );
+          break;
+        }
+      } else {
+        logStep("Ignoring reset error while CDP busy");
       }
     }
 
@@ -745,16 +822,9 @@ async function runCaptureSession(
     }
   }
 
-  if (closeOnDone) {
-    await browser.close();
-  } else {
-    console.log("\nLeaving your Chrome window open (CDP mode).");
-  }
+  console.log(`\nPass done: ${ok} captured, ${fail} failed, ${deferred.length} deferred.`);
 
-  console.log(`\nDone: ${ok} captured, ${fail} failed. Run ./scripts/queue-status.sh to review.`);
-  if (ok > 0) {
-    console.log("Start downloads: caffeinate -dims PARALLEL=2 ./scripts/bulk-download.sh");
-  }
+  return { ok, fail, deferred };
 }
 
 main().catch((e) => {

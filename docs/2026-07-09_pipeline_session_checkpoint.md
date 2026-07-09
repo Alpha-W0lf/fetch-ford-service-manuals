@@ -1,13 +1,18 @@
 # Pipeline session checkpoint — 2026-07-09
 
-**Checkpoint time:** ~00:00 local (2026-07-09)  
+**Latest checkpoint:** ~11:50 local — see [Overnight soak](#overnight-soak--2026-07-09-0136---1140-local) and [AM observations](./2026-07-09_pipeline_runtime_observations_am.md)
+
+**Earlier checkpoint (00:00):** Guide 04.1 smoke + pre-04.2 REL gaps — sections below remain historical record.
+
 **Prior checkpoint:** [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md) (~22:48)  
 **Issue registry:** [known_issues_and_backlog.md](./known_issues_and_backlog.md)  
-**Commit:** `6c15180` — Guide 04.1 (RUN-01 fix)
+**Commits (04.2):** `596e641`, `7d2f918`, `097797c` on `origin/main`
 
 ---
 
-## Executive summary
+## Executive summary (historical — ~00:00)
+
+> **Superseded** by overnight soak section. At 00:00: post–04.1 healthy; capture zombie (REL-02, fixed in 04.2).
 
 | Pipeline | Running? | Progressing? | Verdict |
 |----------|----------|--------------|---------|
@@ -250,8 +255,45 @@ Guide 04.1 was **necessary** for parallel orchestration. It is **not sufficient*
 
 ---
 
+## Overnight soak — 2026-07-09 (~01:36 → 11:40 local)
+
+**Full observations:** [2026-07-09_pipeline_runtime_observations_am.md](./2026-07-09_pipeline_runtime_observations_am.md)
+
+### Verdict at 12:06
+
+| Pipeline | Status |
+|----------|--------|
+| Bulk orchestrator (pid **75301**) | **Healthy** — ~10.5h uptime, heartbeats active, 0 hung reaps |
+| Workers | **`2020-explorer`** + **`2016-police-interceptor-utility`** |
+| Capture | Not running (REL-02 verified earlier session) |
+
+### Progress since 01:36 restart
+
+| Metric | 01:36 | 12:06 | Delta |
+|--------|-------|-------|-------|
+| `complete` | 64 | **88** | **+24** |
+| Verified OK (bulk log) | 0 | **21** | +21 |
+| `needs_params` | 10 | **7** | −3 (capture session) |
+
+### 04.2 soak result
+
+**Passed** 4h merge gate and **12h REL close-out** — orchestrator ran ~10h unattended with continuous heartbeats and job dispatch through auth bursts.
+
+### Notable incidents (morning)
+
+1. **Overnight HTTP 403 burst** — many tier 2/3/4 vehicles failed; cookie refresh + retries recovered newer fleet (Transits, Rangers, Broncos, etc.).
+2. **`2024-bronco` fast-fail storm (~691 INCOMPLETE cycles)** — stale PTS session (`subscriptionExpired` redirect at 11:26); **not** confirmed subscription end; recovered ~11:33; **`OK` verified ~12:00**. Engineering gap: **REL-08** (Guide 04.3).
+3. **`2005-f-150`** — sole remaining `incomplete` (wiring TOC 403).
+4. **Network** — bursty ~2–10 Mbps peaks with 2 workers; negligible on 100+ Mbps broadband.
+5. **`tsconfig.json` IDE errors** — TS5055 "Cannot write file" from missing `noEmit` with `allowJs` + `lib/*.js`; **fixed** (`CODE-11`).
+
+---
+
 ## Changelog
 
 | Date | Update |
 |------|--------|
+| 2026-07-09 12:06 | Fifth-pass audit; `2024-bronco` OK; 21 verified; docs commit |
+| 2026-07-09 11:55 | Third-pass audit; Guide 04.3 plan; CODE-12 |
+| 2026-07-09 11:40 | Overnight soak notes; 20 OK; REL-08 fast-fail storm documented |
 | 2026-07-09 | Guide 04.2 executed — unsupervised reliability; 84 tests |

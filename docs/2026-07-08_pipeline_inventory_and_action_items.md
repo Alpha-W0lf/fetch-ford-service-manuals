@@ -5,7 +5,22 @@
 **Subscription window:** ~72 hours; prioritize tier-1 anchors and trucks/commercial  
 **Guidance applied:** `second_brain/docs/guides/best_practices_ai_native_engineering.md` (simplicity, guardrails, anti-bloat), `best_practices_pr_descriptions_git_workflow.md` (atomic commits, fork-only push), `prompt_work_session_standards.md` (inventory before more patches)
 
-**Related docs:** `AGENTS.md`, `docs/PIPELINE_OPS.md`, `docs/reference/architecture.md`, `BULK_DOWNLOAD_GUIDE.md`, `docs/pipeline-scheduling.md`, [known_issues_and_backlog.md](./known_issues_and_backlog.md) (canonical issue registry), [2026-07-09_pipeline_session_checkpoint.md](./2026-07-09_pipeline_session_checkpoint.md) (**latest**)
+**Related docs:** `AGENTS.md`, `docs/PIPELINE_OPS.md`, `docs/reference/architecture.md`, `BULK_DOWNLOAD_GUIDE.md`, `docs/pipeline-scheduling.md`, [known_issues_and_backlog.md](./known_issues_and_backlog.md) (canonical issue registry), [2026-07-09_pipeline_runtime_observations_am.md](./2026-07-09_pipeline_runtime_observations_am.md) (**latest runtime**)
+
+---
+
+## Session summary (2026-07-09 AM — post–04.2 soak)
+
+| Event | Detail |
+|-------|--------|
+| **04.2 soak** | ~10.5h unattended; pid **75301** since 01:36; 6,600+ heartbeats; 0 hung reaps |
+| **Progress** | `complete` 64→**88**; **21** verified OK in `bulk-download-20260709-0136.log` |
+| **Capture** | 01:36 session: 3 OK; REL-02 exit verified; `needs_params` **7** |
+| **Incidents** | Overnight 403 burst; `2024-bronco` ~691 INCOMPLETE storm (REL-08) → **recovered OK**; `2005-f-150` incomplete |
+| **Tooling** | `tsconfig` TS5055 fixed (`noEmit`); stray emit artifacts in `src/` (CODE-12) |
+| **Next engineering** | Guide **04.3** (auth cooldown) after bulk stops |
+
+Full context: [2026-07-09_pipeline_runtime_observations_am.md](./2026-07-09_pipeline_runtime_observations_am.md)
 
 ---
 
@@ -41,20 +56,31 @@ Full context: [2026-07-09_pipeline_session_checkpoint.md](./2026-07-09_pipeline_
 
 Check live: `./scripts/queue-status.sh --health`
 
-| Metric | Last known (2026-07-09 ~00:00) |
+| Metric | Last known (2026-07-09 ~12:06) |
 |--------|--------------------------------|
-| Orchestrator | **Running** pid **33628** (post–04.1 restart ~23:36) |
-| Workers | **2 active** — `2018-f-250`, `2019-f-250` (workshop) |
-| Complete | **61** |
+| Orchestrator | **Running** pid **75301** (since 01:36) |
+| Workers | **2 active** — `2020-explorer`, `2016-police-interceptor-utility` |
+| Complete | **88** (+24 since 01:36 restart) |
+| Verified OK | **21** in bulk log |
 | Tier 1 | **35/38** |
-| needs_params | **10** (capture retry complete) |
-| Param capture | Retry pass **done**; pid **29405** idle zombie (REL-02) |
+| needs_params | **7** |
+| incomplete | **1** (`2005-f-150`) |
+| Param capture | Not running (last session 01:36; REL-02 OK) |
 
-**Issue registry:** [known_issues_and_backlog.md](./known_issues_and_backlog.md) — RUN-01 fixed; REL-* unsupervised gaps
+**Issue registry:** [known_issues_and_backlog.md](./known_issues_and_backlog.md)
 
-**Latest checkpoint:** [2026-07-09_pipeline_session_checkpoint.md](./2026-07-09_pipeline_session_checkpoint.md)
+**Latest runtime:** [2026-07-09_pipeline_runtime_observations_am.md](./2026-07-09_pipeline_runtime_observations_am.md)
 
-**Runtime notes (prior):** [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md)
+**Checkpoint:** [2026-07-09_pipeline_session_checkpoint.md](./2026-07-09_pipeline_session_checkpoint.md)
+
+### Prior checkpoint (2026-07-09 ~00:00 — superseded)
+
+| Metric | Value |
+|--------|-------|
+| Orchestrator | pid 33628 |
+| Complete | 61 |
+| needs_params | 10 |
+| Capture | REL-02 zombie (fixed in 04.2) |
 
 ### Prior checkpoint (2026-07-08 ~22:48 — superseded)
 

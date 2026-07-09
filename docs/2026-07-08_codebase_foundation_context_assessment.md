@@ -219,7 +219,7 @@ Recent session proved:
 |-----|--------|
 | Test runner | ✅ `yarn test` (Vitest, 68 tests) |
 | CI | ✅ `.github/workflows/test.yml` |
-| `tsconfig.json` scope | **Open** — `scripts/*.ts` not type-checked by default `tsc` |
+| `tsconfig.json` scope | **Open** — `scripts/*.ts` not type-checked; **`noEmit: true` added** (CODE-11 fixed TS5055) |
 | Prettier scope | **Open** — `scripts/` excluded from format script |
 | Pre-commit hooks | **Open** — Phase G |
 | Runtime state gitignored | Tests use fixtures — documented |

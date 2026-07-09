@@ -1,10 +1,11 @@
 # Known issues, tech debt & backlog registry
 
-**Date:** 2026-07-09 (checkpoint ~00:00 local)  
+**Date:** 2026-07-09 (checkpoint ~11:40 local)  
 **Purpose:** Single prioritized registry of open issues, tech debt, and future dev-guide candidates. Use this to plan work after the subscription window or during deliberate maintenance stops.
 
 **Related:**
-- [2026-07-09_pipeline_session_checkpoint.md](./2026-07-09_pipeline_session_checkpoint.md) — **latest session** (Guide 04.1, soak, REL gaps)
+- [2026-07-09_pipeline_runtime_observations_am.md](./2026-07-09_pipeline_runtime_observations_am.md) — **latest runtime evidence** (overnight soak, REL-08)
+- [2026-07-09_pipeline_session_checkpoint.md](./2026-07-09_pipeline_session_checkpoint.md) — session checkpoint (Guide 04.1/04.2, soak)
 - [2026-07-08_pipeline_inventory_and_action_items.md](./2026-07-08_pipeline_inventory_and_action_items.md) — ops action items
 - [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md) — live session evidence
 - [2026-07-08_codebase_foundation_context_assessment.md](./2026-07-08_codebase_foundation_context_assessment.md) — foundation scores & phases
@@ -16,16 +17,17 @@
 
 ---
 
-## Active runtime issues (2026-07-09 ~00:00)
+## Active runtime issues (2026-07-09 ~11:50)
 
 | ID | Severity | Issue | Evidence | Mitigation / future fix |
 |----|----------|-------|----------|------------------------|
-| **RUN-01** | ~~P0~~ | **Bulk orchestrator stall** | [Investigation](./2026-07-09_bulk_stall_root_cause_investigation.md) | **Fixed** Guide 04.1 (`6c15180`) — early soak positive; see [checkpoint](./2026-07-09_pipeline_session_checkpoint.md) |
-| **RUN-02** | P1 | **Hung / orphan `prune-cdp-tabs.ts` processes** | PIDs 91052/91119 ~4h+ from prior session; not under current orchestrator | `CDP_DISCONNECT_TIMEOUT_MS` (04.1); **REL-03** orphan reaper |
-| **RUN-05** | P1 | **Auth burst — 19 `failed`** | ~02:29 UTC rapid 403s; stable since | Auto-retry via queue rank; cookie refresh 3h |
-| **RUN-06** | P1 | **Capture E-Transit tier-1 fails** | `2022/2023/2024-e-transit`: model not in PTS menu | PTS catalog gap — not `modelMatchers`; Guide 07 candidate |
-| **RUN-07** | P2 | **Chrome error tabs** (reset / ERR_TIMED_OUT) | Failed `page.goto` under CDP load | Expected under stress |
-| **RUN-08** | P2 | **Capture PTS home timeouts** | `2009-crown-victoria` 90s timeout | Retry pass; PTS refresh |
+| **RUN-01** | ~~P0~~ | **Bulk orchestrator stall** | [Investigation](./2026-07-09_bulk_stall_root_cause_investigation.md) | **Fixed** Guide 04.1 (`6c15180`) |
+| **RUN-02** | ~~P1~~ | **Hung / orphan `prune-cdp-tabs`** | Prior session PIDs; killed at 04.2 startup | **Mitigated** REL-03 orphan reaper |
+| **RUN-05** | P1 | **Auth burst / 403** | Overnight `failed:127` transient; morning `subscriptionExpired` storm | Cookie refresh; **04.3** cooldown |
+| **RUN-06** | P1 | **Capture E-Transit fails** | `2022/2023/2024-e-transit`: model not in PTS menu | Guide 07 candidate |
+| **RUN-07** | P2 | **Chrome error tabs** | Under CDP load | Expected under stress |
+| **RUN-08** | ~~P2~~ | **Capture PTS home timeouts** | `2009-crown-victoria` succeeded 01:36 session after deferral | **Resolved** this session |
+| **RUN-09** | P2 | **Overnight Mustang/Expedition 403 cluster** | 2012–2021 Mustang FAIL; 2022+ recovered | Auth/session; retry when cookies fresh |
 
 ---
 
@@ -34,12 +36,14 @@
 | ID | P | Gap | Failure mode | Planned fix |
 |----|---|-----|--------------|-------------|
 | **REL-01** | **P0** | **Hung-alive worker** | Yarn PID lives, log frozen, slot blocked (2016 TCM ~9 min @ 99% CPU) | **Guide 04.2** executed — `reapHungWorkers` |
-| **REL-02** | P1 | **Capture no clean exit** | Session done but node process idle | **Guide 04.2** Tier B — CDP `browser.close()` disconnect |
+| **REL-02** | ~~P1~~ | **Capture no clean exit** | Session done but node idle | **Fixed** Guide 04.2 — verified 01:36 session |
 | **REL-03** | P1 | **Orphan prune reaper** | Old `prune-cdp-tabs` survive hours, compete for CDP | **Guide 04.2** — `lib/orphan-prune-reaper.js` |
 | **REL-04** | P0 | **No proven auto-supervisor** | Orchestrator crash → bulk stops | Phase G — OPS-02/03; **04.2** stall detection in `ensure-bulk-running.sh` |
 | **REL-05** | P1 | **No orchestrator heartbeat** | Can't tell stall vs slow from bulk log | **Guide 04.2** executed — `[heartbeat]` lines |
 | **REL-06** | P1 | **No per-job wall clock** | `yarn start` unbounded runtime | **Guide 04.2** — `WORKER_MAX_RUNTIME_MS` |
 | **REL-07** | P2 | **PTS/session drift** | 403s, UI timeouts | Cookie refresh + queue retry (mitigated, not eliminated) |
+| **REL-08** | **P1** | **INCOMPLETE fast-retry storm** | `2024-bronco` ~691 START/INCOMPLETE cycles in ~1h; one slot wasted on second-level auth fails | **Guide 04.3 candidate** — auth-aware INCOMPLETE, per-vehicle cooldown, fix gap attempt accounting |
+| **REL-09** | P2 | **`subscriptionExpired` misread as sub end** | URL `expiredOn=` is often stale session; operator can still log in | Documented in architecture; improve orchestrator log messaging |
 
 ---
 
@@ -53,7 +57,9 @@
 | **OPS-04** | P1 | **Stale locks** after killed orchestrator | Mitigated `bulk-lock.js` | `pipeline-health.sh --fix-locks` |
 | **OPS-05** | P1 | **Multiple overlapping launchers** | Documented | Phase G consolidate |
 | **OPS-06** | P1 | **No orchestrator heartbeat** in bulk log | **Fixed** Guide 04.2 | `[heartbeat]` in `orchestratorTick` |
-| **OPS-07** | P2 | **Capture pass summary** not logged | Open | Guide 05 optional `cli.ts` line |
+| **OPS-07** | P2 | **Capture pass summary** misleading | `Session totals: 0 captured` ignores retry pass | Guide 05 optional fix |
+| **OPS-08** | P2 | **Queue `failed` count volatility** | Transient `failed:127` during 403 burst | Reconcile + operator context |
+| **OPS-09** | P3 | **Orchestrator FAIL vs queue `complete` diverge** | `2022-f-250` FAIL log but `complete` in JSON | Disk-truth; document for operators |
 
 ---
 
@@ -61,13 +67,15 @@
 
 | ID | P | Issue | Count / impact | Future work |
 |----|---|-------|----------------|-------------|
-| **PIPE-01** | P1 | **`needs_params` backlog** | **10** vehicles (was 54 at session start; capture retry **complete**) | 3 Excursions + E-Transit + 4 capture failures — see checkpoint |
+| **PIPE-01** | P1 | **`needs_params` backlog** | **7** vehicles | 3 Excursions + `2003-f-250` + 3 E-Transit — optional capture batch before sub lapse |
 | **PIPE-02** | P1 | **CDP lock contention** — long connector jobs starve capture first pass | 32 deferred → retry pass | By design (Guide 03); throughput tradeoff |
 | **PIPE-03** | P2 | **`2016-f-250` connector slow/hang** | TCM C1750 ~9 min @ 99% CPU; recovered via INCOMPLETE→OK retry | REL-01 wall clock |
 | **PIPE-04** | P1 | **`2011-f-450` incomplete** | Tier-1 gap-fill pending | Auto when slot free |
 | **PIPE-05** | P2 | **Borderline year capture fails** | `2003-f-250` workshop intercept | Guide 06 / manual edge case |
 | **PIPE-06** | P2 | **Intermittent capture UI timeouts** | `2010-taurus`, `2012-escape` | Retry pass; PTS refresh |
 | **PIPE-07** | P3 | **Pre-2003 automation** | 3 Excursions `needs_params` | Guide 06 after Guide 05 + exploration doc |
+| **PIPE-08** | P2 | **CDP lock 10 min wait** | Second parallel worker waits 600s then headless fallback | By design (Guide 03); throughput tradeoff |
+| **PIPE-09** | P3 | **`2022-f-250` repair charts gap** | Tail CDP timeout; queue `complete` | Targeted retry when bulk stops |
 
 ---
 
@@ -82,6 +90,8 @@
 | **CODE-05** | P2 | **Path-resolve dual implementation** | `src/pathResolve.ts`, `lib/path-resolve.js` | Parity tests exist; optional merge |
 | **CODE-06** | P2 | **Whole-file queue rewrites** | `reconcile-queue.js`, `backfill-capture-gaps.js`, generators | Run only when workers idle |
 | **CODE-07** | P2 | **`scripts/*.ts` not in `tsc` scope** | `tsconfig.json` | Phase G — extend typecheck |
+| **CODE-11** | ~~P1~~ | **`tsconfig` TS5055 IDE errors** | `allowJs` + `lib/**/*.js` without `noEmit` | **Fixed** — `noEmit: true` |
+| **CODE-12** | P2 | **Stray `tsc` emit in `src/` + `test/`** | Untracked `*.js` after `tsc` without `noEmit` (IDE or CLI) | Delete artifacts; do not commit; consider gitignore `src/**/*.js` in Phase G |
 | **CODE-08** | P2 | **Prettier excludes `scripts/`** | `package.json` | Phase G pre-commit |
 | **CODE-09** | P3 | **Duplicate cookie refresh** at worker start | orchestrator + worker | Defer until bulk stops |
 | **CODE-10** | P3 | **`README.md` upstream-centric** | root | Post-subscription doc pass |
@@ -102,10 +112,24 @@
 | Bulk orchestrator parallel stall (RUN-01) | Removed blocking orchestrator prune; PID stale reap | Guide 04.1 (`6c15180`) |
 | `2016-f-250` connector interrupted (RUN-03) | INCOMPLETE → retry → OK post-04.1 | Session 2026-07-09 |
 | `2018-expedition-max` 1 connector gap (RUN-04) | OK verified post-restart | Session 2026-07-09 |
+| Capture zombie (REL-02) | CDP `browser.close()` on capture exit | Guide 04.2 — verified 01:36 session |
+| `tsconfig` IDE TS5055 (CODE-11) | `noEmit: true` in `tsconfig.json` | 2026-07-09 |
 
 ---
 
-## Capture failures this session (for matcher / retry tuning)
+## Capture — 01:36 session (2026-07-09)
+
+| Vehicle | Result |
+|---------|--------|
+| `2010-taurus`, `2009-crown-victoria`, `2012-escape` | **OK** (new `params.json`) |
+| `2003-f-250` | FAIL — workshop intercept |
+| `2022/2023/2024-e-transit` | FAIL — PTS catalog (RUN-06) |
+
+**Prior session (2026-07-08 ~21:14)** captured 15 vehicles — see historical table in git history; superseded for `needs_params` counts.
+
+---
+
+## Capture failures — historical (2026-07-08 session)
 
 | Vehicle | Error class | Notes |
 |---------|-------------|-------|
@@ -130,6 +154,7 @@
 | **Guide 06** | Pre-2003 legacy capture | After 05 + `legacy_pts_capture.md` filled |
 | **Phase G** | Watchdog, pre-commit, health consolidation | Post-subscription or maintenance window |
 | **Guide 07** (not authored) | E-Transit PTS availability / alternate capture path | If tier-1 blocked |
+| **Guide 04.3** | INCOMPLETE retry storm / auth cooldown | **P1** — [plan](./dev_guides/2026-07-09_dev_guide_04_3_incomplete_retry_storm.md); after bulk stops |
 
 ---
 
@@ -147,5 +172,9 @@
 
 | Date | Update |
 |------|--------|
+| 2026-07-09 12:06 | Fifth-pass audit; `2024-bronco` OK; 21 verified; docs + tsconfig commit |
+| 2026-07-09 11:55 | Third-pass audit; Guide 04.3 plan; backlog sync; CODE-12 emit artifacts |
+| 2026-07-09 11:50 | CODE-11 fixed — `noEmit: true` in tsconfig (IDE TS5055) |
+| 2026-07-09 11:40 | Overnight soak: 21 OK (incl. bronco post-storm), REL-08, AM observations doc |
 | 2026-07-09 | Guide 04.2 executed — unsupervised reliability; 84 tests |
 | 2026-07-09 | Guide 04.1 executed — RUN-01 fix deployed; 75 tests |

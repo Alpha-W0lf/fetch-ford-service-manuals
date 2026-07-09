@@ -250,4 +250,4 @@ Candidate home: **Guide 04.1** — [2026-07-09_dev_guide_04_1_orchestrator_relia
 
 | Date | Update |
 |------|--------|
-| 2026-07-09 | Dev Guide 04.1 authored — RUN-01 fix plan |
+| 2026-07-09 | Dev Guide 04.1 pass 3 — open questions resolved |

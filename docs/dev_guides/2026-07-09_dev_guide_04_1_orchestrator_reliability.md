@@ -151,7 +151,8 @@ module.exports = { isProcessAlive };
   * `let settled = false`; `finish(code)` idempotent resolve
   * `entry.pid = child.pid`; `entry._resolveWorker = finish`
   * `child.on('close'|'error')` → `finish`
-* [ ] `runOne(config, job, deps, orchestratorState, entry)` — **5th param optional** for tests
+* [ ] `spawnYarnStart(config, yarnArgs, logPath, entry, deps)` — when `entry` is **null/undefined** (unit tests), skip pid/`_resolveWorker` wiring; behavior unchanged
+* [ ] `runOne(config, job, deps, orchestratorState, entry)` — **5th param optional** (`entry ?? null`)
 * [ ] After `await spawnYarnStart(...)`: `if (entry?.reaped) return entry.exitCode ?? 1;`
 * [ ] `startWorkers`: pass `entry` into `runOne(config, job, deps, state, entry)`
 
@@ -164,6 +165,7 @@ module.exports = { isProcessAlive };
     * `entry.reaped = true`; `entry.done = true`; `entry.exitCode = exitCode`
     * `entry._resolveWorker?.(exitCode)`
     * Log: `[reap-stale] ${vid} pid ${pid} dead → ${status}`
+* [ ] `reapStaleWorkers` uses `deps.isProcessAlive ?? require("./process-alive").isProcessAlive` — injectable in tests
 * [ ] Wire into **`orchestratorTick`** (before `reapWorkers`) **and** **`waitForInFlight`** wait loop
 * [ ] Export from `module.exports`
 
@@ -188,7 +190,7 @@ module.exports = { isProcessAlive };
 
 * [ ] `docs/reference/architecture.md` — worker lifecycle: no post-worker orchestrator prune; stale reap
 * [ ] `docs/reference/env_vars.md` — `CDP_DISCONNECT_TIMEOUT_MS`
-* [ ] `docs/PIPELINE_OPS.md` — stall symptoms + recovery one-liner → investigation doc
+* [ ] `docs/PIPELINE_OPS.md` — stall symptoms (**done** pass 2); architecture/env_vars at implementation
 * [ ] After soak: `known_issues_and_backlog.md` RUN-01 → executed
 
 ### Step 8: Operator verification
@@ -251,9 +253,22 @@ module.exports = { isProcessAlive };
 * Single prune service abstraction
 * Split `bulk-orchestrator-lib.js` size
 * Changing `yarn start` to exit non-zero on gaps
+* Other `spawnSync` in `runOne` (`clean-partial-download.sh` ~line 350, `refreshCookies` on worker start) — fast, not observed to stall; separate hardening if needed
 
 ---
 
-**Status:** **Implementation-ready** (pass 2 — 2026-07-09)  
+## Minimum viable fix vs full guide
+
+| Deliverable | Fixes | Ships alone? |
+|-------------|-------|--------------|
+| **Step 1 only** (delete `pruneCdpTabs`) | RUN-01 primary freeze | **Yes** — unblocks parallel workers immediately |
+| **Steps 2–4** (PID + stale reap) | Dead yarn / `close` never fires | No — needs Step 1 |
+| **Step 5** (disconnect timeout) | RUN-02 hung prune subprocess | Yes — independent of Step 1 |
+
+Implement **full guide in one PR** unless operator needs emergency Step-1-only hotfix during subscription.
+
+---
+
+**Status:** **Implementation-ready** (pass 3 final — 2026-07-09)  
 **Depends on:** Guide 04 executed, investigation doc  
 **Blocks:** None (Guide 05 independent)

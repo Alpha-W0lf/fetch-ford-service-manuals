@@ -14,6 +14,8 @@
 
 Read:
 
+- `docs/reference/architecture.md` — **canonical** system design
+- `docs/PIPELINE_OPS.md` — operator index
 - `docs/pipeline-scheduling.md` — process coordination
 - `docs/2026-07-08_pipeline_inventory_and_action_items.md` — open items and known root causes
 - `BULK_DOWNLOAD_GUIDE.md` — operator-facing start/stop
@@ -44,3 +46,5 @@ Watchdog (`./scripts/install-bulk-watchdog.sh`) is **experimental** — do not t
 - **PTS CDP:** `src/cdpConnectorPage.ts`, `scripts/capture-params.ts`
 
 When splitting work, prefer extracting from bash into existing Node libs rather than new one-off scripts.
+
+**Foundation hardening:** `docs/dev_guides/README.md` — execute one guide at a time; do not skip to Guide 04+ during active bulk.

@@ -5,7 +5,7 @@
 **Subscription window:** ~72 hours; prioritize tier-1 anchors and trucks/commercial  
 **Guidance applied:** `second_brain/docs/guides/best_practices_ai_native_engineering.md` (simplicity, guardrails, anti-bloat), `best_practices_pr_descriptions_git_workflow.md` (atomic commits, fork-only push), `prompt_work_session_standards.md` (inventory before more patches)
 
-**Related docs:** `AGENTS.md`, `BULK_DOWNLOAD_GUIDE.md`, `docs/pipeline-scheduling.md`
+**Related docs:** `AGENTS.md`, `docs/PIPELINE_OPS.md`, `docs/reference/architecture.md`, `BULK_DOWNLOAD_GUIDE.md`, `docs/pipeline-scheduling.md`, `docs/dev_guides/2026-07-08_dev_guide_01_architecture_reference.md`
 
 ---
 
@@ -59,7 +59,7 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 | **P1** | **E-Transit `modelMatchers` fix** (`capture-params.ts`) | `2022/23/24-e-transit` fail: menu label mismatch | Low | 3 tier-1 vehicles blocked | Wrong alias if PTS label differs | **Fixed in code — restart capture to pick up** |
 | **P1** | **Pre-2003 automated capture** (not manual DevTools) | 3 vehicles now; fleet will grow | Medium | Pre-2003 stays blocked | Scope creep mid-sprint | **Backlog — defer during subscription** |
 | **P1** | Prove or remove launchd watchdog | Experimental; TCC issues | Medium | No auto-restart overnight | Spurious Terminal tabs | Open |
-| **P1** | Update `BULK_DOWNLOAD_GUIDE.md` | Single ops doc | Low | Repeat mis-starts | Doc drift | ✅ Done |
+| **P1** | Foundation docs + dev guides | Maintainability; freeze contracts before tests | Low | Drift continues | None | **Guide 01 complete** — Guide 02 next |
 | **P1** | Split `bulk-download.sh` (~500 lines) | Maintainability | Medium | Harder debugging | Break running pipeline | **Defer until bulk stops** |
 | **P1** | Retry `2011-f-450` gap-fill | Tier-1 incomplete | Low | Missing pages | Queue time | Auto when slot free |
 | **P1** | Commit/push frequently to **origin only** | Checkpoints | Low | Lost history | Accidental upstream push | Ongoing |
@@ -92,7 +92,7 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 |------|----------|-------|
 | **No proven auto-supervisor** | High | Watchdog unverified; Terminal start is the real fix |
 | **504-line bash orchestrator** | Medium | Split after bulk run ends |
-| **Lock patterns** (bulk + CDP) | Low | Documented in `AGENTS.md`; freeze |
+| **Lock patterns** (bulk + CDP) | Low | Per-connector CDP lock + capture yield documented in `docs/reference/` |
 | **Duplicate `~/bin/ford-bulk-watchdog.sh`** | Low | Re-run install after `ensure-bulk-running.sh` changes |
 | **54 needs_params** | High (throughput) | Param capture running; restart after capture code changes |
 | **E-Transit naming** | Medium | `modelMatchers` + regex fallback in `capture-params.ts`; verify on next capture pass |
@@ -111,6 +111,18 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 4. **Push to `origin` only** — fork `Alpha-W0lf/fetch-ford-service-manuals`.
 5. **Simplicity over new ops features** until bulk runs 12+ hours without intervention.
 6. **Do not restart bulk** to pick up doc-only or non-orchestrator code changes.
+
+---
+
+## CDP coordination (2026-07-08 — reference frozen in Guide 01)
+
+| Behavior | Detail |
+|----------|--------|
+| Bulk connector lock | **Per connector** (`withCdpChromeLock`), not whole vehicle |
+| Capture lock | **Per vehicle** during navigation; released in `finally` |
+| Capture yield | `CDP_LOCK_YIELD_MS` (120s) → defer to retry pass if bulk busy |
+| Tab prune incident | Aggressive prune closed live connector tab on `2018-f-550` — fixed: safe prune only |
+| Canonical docs | `docs/reference/architecture.md`, `docs/reference/schemas.md` |
 
 ---
 
@@ -152,4 +164,4 @@ upstream → https://github.com/iamtheyammer/fetch-ford-service-manuals.git (fet
 |------|--------|
 | 2026-07-08 | Initial inventory after supervision root-cause session |
 | 2026-07-08 | Checkpoint ~18:00 — 55 complete, tier 1 31/38; docs + AGENTS.md |
-| 2026-07-08 | Checkpoint ~19:00 — 56 complete, tier 1 32/38, needs_params 54; E-Transit matchers; pre-2003 automation backlog |
+| 2026-07-08 | Dev Guide 01 — `docs/reference/*`, `PIPELINE_OPS.md`, CDP docs aligned |

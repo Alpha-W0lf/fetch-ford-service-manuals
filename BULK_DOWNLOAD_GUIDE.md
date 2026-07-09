@@ -62,7 +62,7 @@ SKIP_BACKFILL_ON_START=1 ./scripts/start-bulk-download.sh
 ./scripts/queue-status.sh --health
 ```
 
-See also: `docs/pipeline-scheduling.md`, `docs/2026-07-08_pipeline_inventory_and_action_items.md`.
+See also: `docs/PIPELINE_OPS.md`, `docs/reference/architecture.md`, `docs/pipeline-scheduling.md`, `docs/2026-07-08_pipeline_inventory_and_action_items.md`.
 
 **Do not** run `./scripts/bulk-download.sh` directly from Cursor agent sessions — the orchestrator dies when the session ends.
 
@@ -78,10 +78,13 @@ node scripts/generate-vehicle-queue.js   # rebuild from generation definitions
 ./scripts/queue-status.sh                # what's done / next
 ```
 
-Queue file: `templates/vehicles.json` — currently **186 vehicles**:
+Queue file: `templates/vehicles.json` — **~295 vehicles** after base generation (186) + catalog expansion append (109):
+
 - **Tier 1** (breadth): one anchor year per generation — trucks/commercial first
 - **Tier 2+** (fill): remaining years in each generation
 - **Tier 3**: consumer cars/SUVs
+
+To append expansion vehicles without resetting statuses: `node scripts/append-vehicle-queue.js`
 
 Statuses: `needs_params` → `pending` → `complete` | `incomplete` | `failed`
 
@@ -100,7 +103,7 @@ Param capture waits for the CDP lock when bulk is on connector pages.
 At ~45–60 min/vehicle (Transit was ~1 hr):
 - Sequential: ~45–60 vehicles max
 - 2 parallel: ~70–90 vehicles max
-- Full queue (186): needs ~140+ hours sequential — **won't finish everything**
+- Full queue (~295): needs extended wall time — **plan tier-1 anchors first**
 
 **Plan:** finish all **27 tier-1 anchors** first (~14–20 hrs with 2 workers), then tier-2 truck years, then consumer fill-ins until time runs out.
 

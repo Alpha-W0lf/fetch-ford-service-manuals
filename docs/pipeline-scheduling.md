@@ -2,6 +2,8 @@
 
 How bulk download, param capture, and PTS Chrome (CDP) coordinate.
 
+**Canonical architecture:** [reference/architecture.md](./reference/architecture.md) · **Operator index:** [PIPELINE_OPS.md](./PIPELINE_OPS.md)
+
 ## Processes
 
 | Process | Command | Browser | Purpose |
@@ -68,14 +70,20 @@ Do **not** rely on Cursor/agent background shells for long runs — they kill th
 
 Startup reconcile skips fleet-wide `backfill-capture-gaps` by default (`SKIP_BACKFILL_ON_START=1`). Set `SKIP_BACKFILL_ON_START=0` for a full fleet gap audit before bulk.
 
-Mutual exclusion for PTS Chrome between:
+Mutual exclusion for PTS Chrome (`logs/cdp-chrome.lock/` via `scripts/cdp-chrome-lock.js`):
 
-- **Bulk** — only during connector capture (`createConnectorPage` acquire → release on close)
-- **Param capture** — per vehicle while navigating PTS (`capture-params.ts`)
+- **Bulk connectors** — **per connector** via `withCdpChromeLock()` in `src/cdpConnectorPage.ts` / `src/wiring/saveConnector.ts` (not for entire vehicle job)
+- **Param capture** — **per vehicle** during PTS navigation in `scripts/capture-params.ts`; releases lock after each vehicle
 
-Headless workshop/wiring **do not** hold the lock. Bulk connector jobs wait (up to `CDP_LOCK_WAIT_MS`, default 10 min) if param capture holds Chrome.
+Headless workshop/wiring **do not** hold the CDP lock.
+
+**Capture yield:** First pass waits `CDP_LOCK_YIELD_MS` (default 120s); if bulk still holds lock, vehicle is **deferred** to a retry pass at end with longer `CDP_LOCK_WAIT_MS` (default 600s).
+
+**Bulk connector wait:** Up to `CDP_LOCK_WAIT_MS` if capture holds Chrome.
 
 Stale locks (dead PID) are removed automatically by `scripts/cdp-chrome-lock.js`.
+
+**Canonical detail:** `docs/reference/architecture.md` · **Tab prune:** only `about:blank` / `chrome-error://` during active connector jobs — never live `/wiring/face` tabs.
 
 **Do not** manually delete the lock unless you have confirmed no `capture-params` or connector job is running.
 

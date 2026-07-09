@@ -27,27 +27,35 @@
 
 Check live: `./scripts/queue-status.sh --health`
 
-| Metric | Last known (2026-07-08 ~21:10) |
+| Metric | Last known (2026-07-08 ~21:32) |
 |--------|--------------------------------|
-| Orchestrator | **Stopped** (Guide 04 implemented; soak pending) |
-| Workers | **0** |
-| Complete | **57** |
-| Tier 1 | **33/38** |
-| Pending | **182** |
-| needs_params | **54** |
-| Incomplete | **1** (`2018-f-550`) |
-| Param capture | **Stopped** (PTS refresh needed before restart) |
+| Orchestrator | **Running** — Node `bulk-orchestrator.js` pid **28011** |
+| Workers | **2** — `2016-f-250` (wiring, ~1982 log lines), `2018-expedition-max` (workshop PDFs) |
+| Complete | **59** (`2018-f-550`, `2004-f-150` this session) |
+| Tier 1 | **35/38** |
+| Failed | **19** (auth burst ~02:29 UTC — see below) |
+| needs_params | **50** (−4 from capture OKs) |
+| Param capture | **Running** — 4 OK this session; on `2010-taurus` |
 
-### Resolved (Guide 04)
+### Restart procedure (2026-07-08 ~21:14)
 
-1. **Orphaned `downloading`** — fixed in `reapWorkers()` + reconcile after stop.
-2. **500-line bash orchestrator** — split to Node (`bulk-orchestrator.js` + libs); bash thin wrapper.
+1. PTS Chrome CDP `:9222` — up
+2. `./scripts/start-bulk-in-terminal.sh` — Terminal.app → bulk via `caffeinate` + Node orchestrator
+3. `./scripts/start-capture-in-terminal.sh` — second Terminal → `run-capture-params.sh --all`
+4. Guide 04 soak **in progress** — orchestrator healthy; workers dispatching and completing
 
-### Open before production restart
+### Observations
 
-1. **30-min bulk soak** in Terminal.app with new Node orchestrator.
-2. **PTS Chrome refresh** (`launch-pts-chrome.sh`) before capture restart — prior session hit `page.goto` timeouts.
-3. **Guide 05** — implement when capture stopped; bulk can run in parallel after soak.
+**Healthy:**
+- Bulk: `2004-f-150` → complete; `2018-f-550` connectors → complete; 2 workers actively downloading (`2016-f-250`, `2018-expedition-max`)
+- Capture: CDP lock held; 4 vehicles captured (`2009-flex`, `2009-navigator`, `2010-navigator`, `2010-fusion`); E-Transit deferred to retry pass (expected during connector job)
+- CDP coordination: defer/retry working as designed
+
+**Watch (not blocking yet):**
+- **~02:29 UTC auth burst:** 14+ vehicles failed fast with HTTP 403 (F-250, Transit, Ranger, Maverick, Expedition). Cookie refresh fires after each; workers recovered and long jobs continue. Likely cookie/session contention while capture + bulk headless overlapped. Failed vehicles **will retry** via queue rank.
+- `2003-f-250` capture: workshop intercept miss (1 vehicle, edge year)
+
+**No incident file** — monitor for sustained 403s; re-login PTS Chrome if failures continue after cookie refresh.
 
 ---
 

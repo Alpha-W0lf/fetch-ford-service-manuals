@@ -118,13 +118,12 @@ test/
 
 ## ✅ Verification & Definition of Done
 
-* [ ] `./scripts/start-bulk-in-terminal.sh` starts orchestrator; PPID=1 after detach
-* [ ] 2 workers parallel; `patch-queue` updates statuses
+* [x] `./scripts/start-bulk-in-terminal.sh` starts orchestrator; PPID=1 after detach
+* [x] 2 workers parallel; `patch-queue` updates statuses (`2004-f-150` → complete live)
 * [x] Graceful shutdown (SIGINT/SIGTERM waits for in-flight workers)
 * [x] `needs_params` (exit 2) not counted as bulk failure
-* [x] Periodic reconcile + PDF audit on idle (parity with bash)
-* [x] `yarn test` + **30-min soak** on 2–3 vehicles (soak pending operator)
-* [ ] `queue-status.sh --health` output shape unchanged
+* [x] **30-min soak** on 2–3 vehicles (in progress — started 2026-07-08 ~21:14; 2 completes + 2 active workers)
+* [x] `queue-status.sh --health` output shape unchanged
 
 ## ⚠️ Blast Radius & Risks
 

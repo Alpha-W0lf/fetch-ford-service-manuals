@@ -27,23 +27,25 @@
 
 Check live: `./scripts/queue-status.sh --health`
 
-| Metric | Last known (2026-07-08 ~19:00) |
+| Metric | Last known (2026-07-08 ~20:50) |
 |--------|--------------------------------|
-| Orchestrator | Running (pid 91430, **PPID=1**, ~3h+ uptime) |
-| Workers | **2** parallel (`yarn start`) |
+| Orchestrator | Running (pid **91430**, ~4h+ uptime) |
+| Workers | **0** active `yarn start` (orchestrator polling) |
 | Complete | **56** |
 | Tier 1 | **32/38** |
-| Pending | 181 |
-| needs_params | **54** (down from 75 at session start) |
-| Failed | 1 |
-| Downloading | 2 |
-| Param capture | **Running** (Terminal; `logs/capture-params-20260708-1828.log`) |
+| Pending | **181** |
+| needs_params | **54** |
+| Failed | **1** |
+| Downloading | **2** — **orphaned** (see below) |
+| Param capture | PID **74875** still attached (`--all`); last session **stopped after 5 consecutive PTS timeouts** |
 
-**Recently completed this run:** `2004-f-150`, `2008-f-150`, `2011-e-series`, plus earlier `2018-f-350`, `2011-f-550`.
+### Issues observed (plan for Guide 04 / ops)
 
-**Active (last check):** `2018-f-550` (bulk worker); param capture on `--all` (CDP mode).
+1. **Orphaned `downloading` status** — `2018-f-550`, `2010-e-series` show `downloading` with **no workers**; vehicle logs show jobs finished ~19:34 with incomplete/complete. `reconcile-queue` had moved them to `incomplete` earlier; status reverted to `downloading` on re-dispatch without final `patch-queue` update. **Guide 04:** on worker reap, verify queue status vs disk; reset stale `downloading`.
+2. **Param capture PTS timeouts** — `page.goto` timeout to PTS home after consecutive failures; session ended 0 captured. **Ops:** refresh PTS Chrome (`launch-pts-chrome.sh`), re-run capture when bulk not holding CDP lock.
+3. **Extra bulk bash PIDs** (77245, 77744) — likely parent shells; orchestrator lock held by 91430 only.
 
-**Recommendation:** **Do not stop or relaunch** while healthy. Restart only if orchestrator down or 0 workers for >10 minutes. **Param capture must restart** after code changes to `capture-params.ts` (running process does not hot-reload).
+**Recommendation:** Bulk can keep running but is **not fully healthy** (stuck downloading blocks those vehicles). **Good time to stop for Guide 04** if subscription hours are scarce — run `reconcile-queue.js` once after stop to fix queue, then implement orchestrator with orphaned-downloading fix.
 
 ---
 

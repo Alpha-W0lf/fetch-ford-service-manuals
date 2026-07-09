@@ -2,6 +2,7 @@ import { chromium, Browser, BrowserContext, Page } from "playwright";
 import {
   isChromeErrorTab,
   isConnectorCaptureTab,
+  isConnectorJobActive,
   isDisposableTab,
   isSafePruneDuringConnectorJob,
   shouldSkipDisposableTabClose,
@@ -194,7 +195,7 @@ export async function pruneOrphanCdpTabs(
     const pages = contexts[0].pages();
     const lock = cdpLock.lockInfo();
     const connectorJobActive =
-      cdpLock.isLocked() && (lock?.holder || "").startsWith("connector-");
+      cdpLock.isLocked() && isConnectorJobActive(lock);
 
     let closed = 0;
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isChromeErrorTab,
   isConnectorCaptureTab,
+  isConnectorJobActive,
   isDisposableTab,
   isSafePruneDuringConnectorJob,
   shouldSkipDisposableTabClose,
@@ -14,6 +15,12 @@ describe("cdp-tab-hygiene", () => {
   it("identifies connector capture tabs", () => {
     expect(isConnectorCaptureTab(faceUrl)).toBe(true);
     expect(isConnectorCaptureTab("about:blank")).toBe(false);
+  });
+
+  it("isConnectorJobActive matches connector- holders only", () => {
+    expect(isConnectorJobActive({ holder: "connector-12345" })).toBe(true);
+    expect(isConnectorJobActive({ holder: "capture-params" })).toBe(false);
+    expect(isConnectorJobActive(null)).toBe(false);
   });
 
   it("isSafePruneDuringConnectorJob never prunes /wiring/face", () => {

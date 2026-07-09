@@ -23,6 +23,7 @@
 | 02 | [2026-07-08_dev_guide_02_test_harness_and_pure_libs.md](./2026-07-08_dev_guide_02_test_harness_and_pure_libs.md) | Code + tests | **Executed** | Yes (if parity tests pass) |
 | 03 | [2026-07-08_dev_guide_03_cdp_coordination.md](./2026-07-08_dev_guide_03_cdp_coordination.md) | Code + tests | **Executed** | Yes |
 | 04 | [2026-07-08_dev_guide_04_orchestrator_split.md](./2026-07-08_dev_guide_04_orchestrator_split.md) | Major refactor | **Executed** (live soak 2026-07-08) | **No** (during impl) |
+| 04.1 | [2026-07-09_dev_guide_04_1_orchestrator_reliability.md](./2026-07-09_dev_guide_04_1_orchestrator_reliability.md) | Reliability fix | **Implementation-ready** (RUN-01) | **No** (during impl) |
 | 05 | [2026-07-08_dev_guide_05_capture_modularization.md](./2026-07-08_dev_guide_05_capture_modularization.md) | Refactor | **Implementation-ready** | Yes (bulk can run) |
 | 06 | [2026-07-08_dev_guide_06_legacy_capture.md](./2026-07-08_dev_guide_06_legacy_capture.md) | Feature | **Plan** — needs Guide 05 + [legacy_pts_capture.md](../reference/legacy_pts_capture.md) | After capture restart |
 
@@ -33,7 +34,7 @@ Phase G from context assessment: pre-commit hooks, watchdog removal, `pipeline-h
 ## Dependency graph
 
 ```
-01 (executed) → 02 → 03 → 04 (executed)
+01 (executed) → 02 → 03 → 04 (executed) → 04.1 (implementation-ready, RUN-01)
                       ↘ 05 (implementation-ready) → 06 (plan)
                       ↘ Phase G (future — not a numbered guide)
 ```
@@ -42,6 +43,8 @@ Phase G from context assessment: pre-commit hooks, watchdog removal, `pipeline-h
 
 | Question | Answer |
 |----------|--------|
+| Append RUN-01 fix to Guide 04? | **No** — Guide 04 executed; use **04.1** |
+| Ready for Guide 04.1 code? | **Yes**, after bulk stopped + Tom says "follow dev guide 04.1" |
 | More planning passes for Guide 05? | **No** — ready when capture stopped |
 | Ready for Guide 05 code? | **Yes**, after capture stopped + Tom says "follow dev guide 05" |
 | Ready for Guide 06? | **No** — needs Guide 05 executed + operator-filled `legacy_pts_capture.md` |

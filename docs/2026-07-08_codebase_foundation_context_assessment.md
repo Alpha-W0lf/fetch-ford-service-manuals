@@ -3,7 +3,7 @@
 **Date:** 2026-07-08  
 **Author:** AI session (Tom-directed)  
 **Status:** Context gathering complete · Dev Guides **01–04 executed** · Guide **05 implementation-ready** · Guide **06 plan only**  
-**Next step:** Let subscription pipelines run; execute Guide 05 when capture can be stopped
+**Next step:** Execute **Guide 04.1** when bulk stopped (RUN-01); then Guide 05 when capture stopped
 
 **Workflow position:** Phase 5 output from `meta_context_gathering.md` — foundation hardening initiative (not a Jira ticket).
 

@@ -17,8 +17,8 @@
 
 | ID | Severity | Issue | Evidence | Mitigation / future fix |
 |----|----------|-------|----------|------------------------|
-| **RUN-01** | **P0** | **Bulk orchestrator stalled** — 0 `yarn start` workers but 2 queue rows `downloading` | `queue-status --health`: yarn workers 0; `2016-f-250` / `2018-expedition-max` still `downloading`; bulk log shows START without matching OK/FAIL/INCOMPLETE; `2016-f-250.log` mtime frozen ~22:25 | **Ops:** restart bulk via `./scripts/start-bulk-in-terminal.sh` after capture session tolerates interrupt, or kill hung `prune-cdp-tabs` children of pid 28011. **Code (Phase G):** detect dead worker PIDs; timeout `pruneCdpTabs` spawnSync; don't block `runOne` on prune |
-| **RUN-02** | P1 | **Hung `prune-cdp-tabs.ts` processes** | 4+ `ts-node …/prune-cdp-tabs.ts` PIDs (some since ~19:34); orchestrator child 49065 at 22:25 | Kill orphan prunes; add prune timeout + single-flight guard in orchestrator |
+| **RUN-01** | **P0** | **Bulk orchestrator stall** | [Investigation](./2026-07-09_bulk_stall_root_cause_investigation.md) | **Workaround:** kill prune child; restart bulk from Terminal.app. **Fix:** [Guide 04.1](./dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md) — **implementation-ready** |
+| **RUN-02** | P1 | **Hung `prune-cdp-tabs.ts` processes** | Orchestrator child + 3h orphans from prior sessions (s022) | Kill stale prunes; single-flight prune; timeout on `browser.close()` |
 | **RUN-03** | P1 | **`2016-f-250` connector job interrupted** | 2302 PDFs; log ends mid-connector save; prior INCOMPLETE in bulk log | Will retry on orchestrator restart; expect gap registry update |
 | **RUN-04** | P1 | **`2018-expedition-max` incomplete** | 2219 PDFs; `Capture incomplete: 1 gap (wiring-connector:1)` | Hybrid-complete or gap-fill on retry |
 | **RUN-05** | P1 | **Auth burst — 19 `failed`** | ~02:29 UTC rapid 403s; stable since | Auto-retry via queue rank; re-login PTS if count climbs |
@@ -83,7 +83,7 @@
 | Aggressive tab prune closed live connector tab | Safe prune rules | Guide 03 + `cdp_tab_hygiene.md` |
 | `captureGaps` TS/JS contract drift | `lib/capture-gaps-rules.js` + tests | Guide 02 |
 | No unit tests / CI | 68 Vitest tests + `.github/workflows/test.yml` | Guide 02 |
-| Orphan `downloading` on worker exit | `fixOrphanDownloading` in `reapWorkers` | Guide 04 — **may need RUN-01 hardening** |
+| Orphan `downloading` on worker exit | `fixOrphanDownloading` in `reapWorkers` | Guide 04 — **extended by 04.1** `reapStaleWorkers` for `done: false` |
 
 ---
 
@@ -109,7 +109,7 @@
 | **Guide 05** | Capture modularization | **Next** — implementation-ready |
 | **Guide 06** | Pre-2003 legacy capture | After 05 + `legacy_pts_capture.md` filled |
 | **Phase G** | Pre-commit, health consolidation, orchestrator heartbeat, prune timeout, watchdog decision | Post-subscription or maintenance window |
-| **Guide 04.1** (optional) | Split `bulk-orchestrator-lib.js`; dead-worker detection; prune single-flight | After RUN-01 post-mortem |
+| **Guide 04.1** | Orchestrator reliability: remove blocking prune, PID-aware reap — [dev guide](./dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md) | **P0** — **implementation-ready** |
 | **Guide 07** (not authored) | E-Transit PTS availability / alternate capture path | If tier-1 blocked after retry |
 
 ---

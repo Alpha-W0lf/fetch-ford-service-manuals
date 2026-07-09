@@ -122,6 +122,14 @@ start-bulk-in-terminal.sh
 
 ---
 
-**Status:** **Executed** 2026-07-08 — live soak validated; production run in progress  
+## Follow-up (post-soak — separate guide)
+
+**RUN-01 stall (2026-07-08 ~22:25):** Orchestrator froze on `spawnSync(prune)` with `PARALLEL=2`. Orphan `downloading` fix in this guide only runs when `entry.done === true` — insufficient for this failure mode.
+
+**Fix:** [2026-07-09_dev_guide_04_1_orchestrator_reliability.md](./2026-07-09_dev_guide_04_1_orchestrator_reliability.md) — remove blocking prune from `runOne`; PID-aware `reapStaleWorkers`.
+
+---
+
+**Status:** **Executed** 2026-07-08 — live soak validated; **04.1 required** for self-managing parallel workers    
 **Depends on:** Dev Guides 02, 03  
 **Blocks:** None (Guide 05 is capture-only; can run while bulk active)

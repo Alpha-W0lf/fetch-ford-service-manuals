@@ -139,7 +139,7 @@ const PLACEHOLDER_PRE2003_URL =
 | PTS legacy UI differs per model/year | **High** | Exploration doc per manual type; start with Excursion only |
 | Breaking 2003+ capture | **High** | Separate branch; Guide 05 module tests; modern smoke after merge |
 | Subscription time on 3 low-priority vehicles | Low | Default defer; `--legacy-only` for explicit runs |
-| Legacy uses CDP while bulk connectors run | Medium | Same lock/defer as modern capture |
+| Legacy uses CDP while bulk connectors run | Medium | Same lock/defer as modern; expect defer + possible PTS home timeouts |
 
 **Rollback:** Revert; legacy vehicles stay `needs_params`; modern capture unaffected.
 

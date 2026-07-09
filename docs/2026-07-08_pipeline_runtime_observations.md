@@ -1,7 +1,7 @@
 # Pipeline runtime observations — 2026-07-08 evening session
 
-**Checkpoint time:** ~22:07 local (2026-07-09 ~03:07 UTC)  
-**Session start:** ~21:14 local via `start-bulk-in-terminal.sh` + `start-capture-in-terminal.sh`  
+**Checkpoint time:** ~22:24 local (session ~70 min)  
+**Prior checkpoint:** ~22:07 — see changelog below  
 **Related:** [2026-07-08_pipeline_inventory_and_action_items.md](./2026-07-08_pipeline_inventory_and_action_items.md), [pipeline-scheduling.md](./pipeline-scheduling.md), [reference/architecture.md](./reference/architecture.md)
 
 ---
@@ -10,8 +10,8 @@
 
 | Pipeline | Running? | Progressing? | Verdict |
 |----------|----------|--------------|---------|
-| **Bulk** | Yes (pid 28011, ~53 min uptime) | Yes — 2 workers, 1900+ PDFs each in flight | **Healthy but slow** (long connector phase) |
-| **Param capture** | Yes (pid 29405, ~53 min) | Partial — **7 OK**, **21 deferred**, first pass still running | **Healthy by design** while bulk holds CDP lock |
+| **Bulk** | Yes (pid 28011, ~70 min) | Yes — connectors saving; ~1962+ / ~2167 PDFs | **Healthy, slow** |
+| **Param capture** | Yes (pid 29405) | Partial — **7 OK**, **23 defer**, **3 FAIL**; PTS home timeouts under load | **Stressed** — watch consecutive fails |
 
 **You are not mistaken** about low visible Chrome activity — that is **expected** for most bulk work. See [Why Chrome looks idle](#why-chrome-looks-idle) below.
 
@@ -56,33 +56,44 @@ Capture is **not idle** — it is **fast-deferring** vehicles while bulk connect
 
 This is **by architecture**, not a sign that nothing is running.
 
-### 1. Workshop + wiring (most bulk time) → **headless Chromium**
+### Broken tabs ("connection reset" / ERR_TIMED_OUT) — common under load
 
-- `yarn start` launches Playwright with `HEADLESS_BROWSER` default **on** (`src/constants.ts`).
-- PDF fetch uses axios + headless page render — **no visible browser window**.
-- Log evidence: `Creating a headless chromium instance...` in vehicle logs.
+You may see **one or more PTS Chrome tabs** showing:
 
-### 2. Connectors → **PTS Chrome, often background tabs**
+- *The connection was reset*
+- *This site can't be reached … ERR_TIMED_OUT*
 
-- Connectors attach to live PTS Chrome on `:9222` via CDP (`src/cdpConnectorPage.ts`).
-- **`CDP_BACKGROUND_TAB=1` (default)** — connector pages open as **background tabs**; you may not see tab switches or front-window activity.
-- CDP tab list at checkpoint: 7 targets including `wiring/face/?book=EGO…` and PTS home — activity is on existing Chrome, not a new window.
+**This does not necessarily mean the pipelines are dead.** Typical causes:
 
-### 3. Param capture → **PTS Chrome, but blocked during connector lock**
+| Cause | What happens |
+|-------|----------------|
+| **Connector `page.goto` timeout** | Bulk opens wiring/face URLs in PTS Chrome (CDP). Slow PTS or Akamai → navigation fails; tab may show error until closed or overwritten. |
+| **Capture PTS home reset** | After a vehicle, capture runs `page.goto` to PTS home. If bulk connector still holds CDP lock and PTS is busy, home load can **timeout** (90s) — tab shows error. |
+| **Background connector tabs** | `CDP_BACKGROUND_TAB=1` (default) — failed loads may sit in background until prune. |
+| **Stale tabs** | Not every failed navigation is closed immediately; Chrome can accumulate error pages. |
 
-- Capture navigates Vehicle ID / Workshop / Wiring in PTS Chrome when it holds `cdp-chrome.lock`.
-- While `connector-51173` holds the lock (~37+ min on `2016-f-250`), capture logs `CDP busy — deferring` and **does not navigate** — Chrome appears frozen from a capture perspective.
+**At ~22:24 checkpoint:** CDP listed PTS **home** + active **Connector Viewer** tab; bulk worker `2016-f-250` still saving connectors (2500+ log lines). Error tabs are **symptoms of PTS/network stress**, not proof orchestrator failure.
 
-### What you *should* see
+**When to act:**
 
-| If you look at… | Expected |
-|-----------------|----------|
-| Dock / app switcher | One PTS Chrome (from `launch-pts-chrome.sh`); optional brief background tab churn |
-| Activity Monitor | `node` (orchestrator), `yarn`/`ts-node` (workers), headless Chromium children (may be short-lived per phase) |
-| Terminal.app | Bulk log + capture log growing |
-| `logs/*.log` | Vehicle logs growing (thousands of lines for big jobs) |
+- **Bulk vehicle logs still growing** (e.g. `Saving connector …`) → keep running; optional `npx ts-node scripts/prune-cdp-tabs.ts` only when **no** connector job active (or after worker completes).
+- **Capture hits 5 consecutive fails** or all `page.goto` to PTS home fail → refresh PTS Chrome: `./scripts/launch-pts-chrome.sh`, re-login, `./scripts/start-capture-in-terminal.sh --restart` (bulk can keep running).
+- **Both workers stuck** with only timeout lines for 10+ min → re-login PTS + cookie export.
 
-To **force visible connector tabs** (debug only): `CDP_BACKGROUND_TAB=0` before worker start — not recommended for production parallel runs.
+### Phase visibility (no window vs background tab)
+
+| Phase | Browser | Visible? |
+|-------|---------|----------|
+| Workshop PDFs | Headless Playwright (`HEADLESS_BROWSER` default on) | **No window** |
+| Wiring pages | Headless Playwright | **No window** |
+| Connectors | PTS Chrome via CDP (`:9222`) | Often **background tab** (`CDP_BACKGROUND_TAB=1` default) |
+| Param capture | PTS Chrome | Navigates when lock free; **defers** when bulk holds lock |
+
+**Symptoms that are still healthy:** Activity Monitor shows `node`/`yarn` workers; `logs/<vehicle>.log` growing; capture log shows `OK:` or `deferring to retry pass`.
+
+**Debug only:** `CDP_BACKGROUND_TAB=0` — not for parallel production runs.
+
+See [pipeline-scheduling.md](./pipeline-scheduling.md) § Why Chrome may look idle.
 
 ---
 
@@ -116,10 +127,12 @@ To **force visible connector tabs** (debug only): `CDP_BACKGROUND_TAB=0` before 
 
 - Workshop tab did not trigger `TreeAndCover/workshop` intercept — edge year; Guide 06 scope
 
-### E. Queue `complete` count flat ~38 min — **explained, not stuck**
+### F. Chrome error tabs + capture PTS home timeout — **new ~22:24**
 
-- Both worker slots on large incomplete/connector jobs since ~21:30
-- PDF counts growing (1900+) — work is happening
+- **User report:** Two PTS tabs — "connection reset" and `ERR_TIMED_OUT` on fordtechservice.dealerconnection.com
+- **Explanation:** Failed `page.goto` from connector retries and/or capture `resetPtsSession` while PTS under load; see § Broken tabs above
+- **Evidence:** `FAIL 2009-crown-victoria: page.goto: Timeout 90000ms`; `2016-f-250` **22** connector goto timeouts; bulk still appending `Saving connector …`
+- **Action:** Monitor capture for 5 consecutive fails; refresh PTS Chrome if capture stops progressing; do **not** kill bulk if `2016-f-250`/`2018-expedition-max` logs still grow
 
 ---
 

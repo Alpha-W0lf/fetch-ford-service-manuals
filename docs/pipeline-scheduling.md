@@ -49,9 +49,9 @@ Most bulk work does **not** produce visible browser windows:
 
 **Symptoms that are still healthy:** Dock shows one PTS Chrome; Activity Monitor shows `node`/`yarn` workers; `logs/<vehicle>.log` growing; capture log shows `OK:` or `deferring to retry pass`.
 
-**Debug only:** `CDP_BACKGROUND_TAB=0` or `HEADLESS_BROWSER=false` — not for parallel production runs.
+**Error tabs** (*connection reset*, *ERR_TIMED_OUT*) on PTS Chrome are often **failed `page.goto` navigations** (connector timeouts or capture PTS-home reset) while PTS is under load — not proof the orchestrator died. See [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md) § Broken tabs.
 
-See [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md) for a live session write-up.
+**Debug only:** `CDP_BACKGROUND_TAB=0` — not for parallel production runs.
 
 ## Queue priority (`scripts/queue-lib.js`)
 

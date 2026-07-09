@@ -27,17 +27,17 @@
 
 Check live: `./scripts/queue-status.sh --health`
 
-| Metric | Last known (2026-07-08 ~22:07) |
+| Metric | Last known (2026-07-08 ~22:24) |
 |--------|--------------------------------|
-| Orchestrator | **Running** — Node `bulk-orchestrator.js` pid **28011** (~53 min) |
-| Workers | **2** — `2016-f-250` (connectors, ~1935 PDFs, 16 timeout retries), `2018-expedition-max` (connectors, ~1851 PDFs) |
-| Complete | **59** (+2 this session: `2004-f-150`, `2018-f-550`) |
+| Orchestrator | **Running** pid **28011** (~70 min) |
+| Workers | **2** — `2016-f-250` (~1962 PDFs, connector), `2018-expedition-max` (~2167 PDFs, connector) |
+| Complete | **59** (unchanged ~45 min — both slots on long connector jobs) |
 | Tier 1 | **35/38** |
-| Failed | **19** (auth burst ~02:29 UTC — **stable**) |
-| needs_params | **47** (−7 capture OKs) |
-| Param capture | **Running** — **7 OK**, **21+ deferred** (first pass); retry pass pending |
+| Failed | **19** (stable since auth burst) |
+| needs_params | **47** |
+| Param capture | **7 OK**, **23 defer**, **3 FAIL**; PTS home `page.goto` timeouts under load |
 
-**Runtime notes:** [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md) — Chrome visibility, logging gaps, issues A–E.
+**Runtime notes:** [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md) — § Broken tabs, issue F (Chrome errors)
 
 ### Restart procedure (2026-07-08 ~21:14)
 
@@ -53,11 +53,11 @@ Check live: `./scripts/queue-status.sh --health`
 - Capture: CDP lock held; 4 vehicles captured (`2009-flex`, `2009-navigator`, `2010-navigator`, `2010-fusion`); E-Transit deferred to retry pass (expected during connector job)
 - CDP coordination: defer/retry working as designed
 
-**Watch (not blocking yet):**
-- **~02:29 UTC auth burst:** 14+ vehicles failed fast with HTTP 403 (F-250, Transit, Ranger, Maverick, Expedition). Cookie refresh fires after each; workers recovered and long jobs continue. Likely cookie/session contention while capture + bulk headless overlapped. Failed vehicles **will retry** via queue rank.
-- `2003-f-250` capture: workshop intercept miss (1 vehicle, edge year)
-
-**No incident file** — monitor for sustained 403s; re-login PTS Chrome if failures continue after cookie refresh.
+**Watch:**
+- **Chrome error tabs** (connection reset / ERR_TIMED_OUT) — failed `page.goto` under PTS load; bulk connectors still progressing — see runtime observations § Broken tabs
+- **Capture PTS home timeouts** (`2009-crown-victoria`) while `connector-51173` holds CDP lock — refresh PTS if capture hits 5 consecutive fails
+- **~02:29 UTC auth burst:** 19 `failed` — stable; will retry
+- `2003-f-250` capture workshop miss — edge year
 
 ---
 
@@ -183,3 +183,4 @@ upstream → https://github.com/iamtheyammer/fetch-ford-service-manuals.git (fet
 | 2026-07-08 | Dev Guide 01 — `docs/reference/*`, `PIPELINE_OPS.md`, CDP docs aligned |
 | 2026-07-08 | Guide 04 executed; runtime observations; checkpoint ~22:07 |
 | 2026-07-08 | Guide 06 plan pass; `legacy_pts_capture.md` template |
+| 2026-07-08 | Checkpoint ~22:24 — Chrome error tabs doc; capture PTS timeouts |

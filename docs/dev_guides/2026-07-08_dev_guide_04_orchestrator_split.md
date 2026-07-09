@@ -33,7 +33,7 @@ start-bulk-in-terminal.sh
 * [ ] **Bulk run stopped** or subscription window ended (operator confirmation)
 * [ ] Dev Guides 02–03 complete; `yarn test` green
 * [ ] Capture snapshot of current `bulk-download.sh` behavior (log excerpts, queue transitions) for parity checklist
-* [ ] Fix `CIRCUIT_BREAKER_BACKOFF_SEC` default in bash if not done in Guide 02
+* [ ] Fix `CIRCUIT_BREAKER_BACKOFF_SEC` default in bash if not done in Guide 02 — **done in Guide 02**
 
 ### Step 1: Design `bulk-orchestrator.js`
 

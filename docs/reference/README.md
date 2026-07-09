@@ -8,6 +8,7 @@
 | [queue_state_machine.md](./queue_state_machine.md) | `vehicles.json` status transitions and writers |
 | [schemas.md](./schemas.md) | JSON shapes, gap blocking rules (canonical) |
 | [env_vars.md](./env_vars.md) | Environment variable catalog |
+| [cdp_tab_hygiene.md](./cdp_tab_hygiene.md) | CDP tab prune rules and URL classes |
 
 **Operator runbooks** (summaries + links, not duplicate architecture):
 
@@ -18,6 +19,6 @@
 **Foundation planning:**
 
 - [../2026-07-08_codebase_foundation_context_assessment.md](../2026-07-08_codebase_foundation_context_assessment.md)
-- [../dev_guides/README.md](../dev_guides/README.md) — implementation blueprints (01 executed; 02–06 plans)
+- [../dev_guides/README.md](../dev_guides/README.md) — implementation blueprints (01–03 executed; 04–06 plans)
 
 **Agent invariants:** [../../AGENTS.md](../../AGENTS.md)

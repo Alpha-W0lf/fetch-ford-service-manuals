@@ -2,8 +2,8 @@
 
 **Date:** 2026-07-08  
 **Author:** AI session (Tom-directed)  
-**Status:** Context gathering complete · Dev Guides **01–02 executed** · Guides **03–06 plans only**  
-**Next step:** Dev Guide 03 (CDP coordination tests) when ready
+**Status:** Context gathering complete · Dev Guides **01–03 executed** · Guides **04–06 plans only**  
+**Next step:** Dev Guide 04 when bulk stopped (operator confirmation)
 
 **Workflow position:** Phase 5 output from `meta_context_gathering.md` — foundation hardening initiative (not a Jira ticket).
 
@@ -378,13 +378,13 @@ Aligned with `prompt_work_session_standards.md`: **no implementation until dev g
 
 ### Phase C — CDP coordination spec + lock tests (1 session)
 
-- [ ] Extract `lib/cdp-tab-hygiene.js` + `lib/cdp-capture-defer.js` (pure helpers from existing code)
-- [ ] Document lock scopes: per-connector (`withCdpChromeLock`), capture yield/defer, prune rules
-- [ ] Unit tests for defer policy, tab hygiene, CDP lock wait-after-release
-- [ ] `docs/reference/cdp_tab_hygiene.md`
-- [ ] Align `docs/pipeline-scheduling.md` with extracted helpers
+- [x] Extract `lib/cdp-tab-hygiene.js` + `lib/cdp-capture-defer.js` (pure helpers from existing code)
+- [x] Document lock scopes: per-connector (`withCdpChromeLock`), capture yield/defer, prune rules
+- [x] Unit tests for defer policy, tab hygiene, CDP lock wait-after-release
+- [x] `docs/reference/cdp_tab_hygiene.md`
+- [x] Align `docs/pipeline-scheduling.md` with extracted helpers
 
-**Dev guide:** `docs/dev_guides/2026-07-08_dev_guide_03_cdp_coordination.md` — **implementation-ready**
+**Dev guide:** `docs/dev_guides/2026-07-08_dev_guide_03_cdp_coordination.md` — **executed**
 
 ### Phase D — Orchestration refactor (after subscription or bulk idle)
 

@@ -83,7 +83,7 @@ Headless workshop/wiring **do not** hold the CDP lock.
 
 Stale locks (dead PID) are removed automatically by `scripts/cdp-chrome-lock.js`.
 
-**Canonical detail:** `docs/reference/architecture.md` · **Tab prune:** only `about:blank` / `chrome-error://` during active connector jobs — never live `/wiring/face` tabs.
+**Canonical detail:** `docs/reference/cdp_tab_hygiene.md` · **Tab prune:** only `about:blank` / `chrome-error://` during active connector jobs — never live `/wiring/face` tabs.
 
 **Do not** manually delete the lock unless you have confirmed no `capture-params` or connector job is running.
 

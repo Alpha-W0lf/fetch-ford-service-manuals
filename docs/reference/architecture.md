@@ -89,7 +89,7 @@ Headless workshop/wiring **do not** acquire `cdp-chrome.lock`.
 | **Bulk connectors** | Per connector navigation via `withCdpChromeLock()` in `src/cdpConnectorPage.ts` / `src/wiring/saveConnector.ts` | `CDP_LOCK_WAIT_MS` (default 600000 ms) |
 | **Param capture** | Per vehicle during `captureParams()` in `scripts/capture-params.ts` | First pass: `CDP_LOCK_YIELD_MS` (default 120s) then **defer** to retry pass; retry pass: `CDP_LOCK_WAIT_MS` |
 
-**Tab hygiene:** `src/cdpConnectorPage.ts` prunes `about:blank` and `chrome-error://` tabs; during active connector jobs only disposables are closed (never live `/wiring/face` tabs).
+**Tab hygiene:** `src/cdpConnectorPage.ts` prunes per [cdp_tab_hygiene.md](./cdp_tab_hygiene.md).
 
 **Incident lesson (2026-07-08):** Aggressive tab prune during an active connector job closed a live tab → worker error. Prune rules are now conservative.
 

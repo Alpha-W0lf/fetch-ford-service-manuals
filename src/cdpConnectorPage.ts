@@ -10,6 +10,42 @@ const CDP_URL = process.env.CDP_URL || "http://127.0.0.1:9222";
 const CDP_LOCK_WAIT_MS = parseInt(process.env.CDP_LOCK_WAIT_MS || "600000", 10);
 const CDP_BACKGROUND_TAB = process.env.CDP_BACKGROUND_TAB !== "0";
 
+/** Release CDP lock on abrupt process exit (stale-PID cleanup is the backup). */
+let activeLockHolder: string | null = null;
+function trackLockHolder(holder: string | null) {
+  activeLockHolder = holder;
+}
+process.on("exit", () => {
+  if (activeLockHolder) {
+    cdpLock.release(activeLockHolder);
+  }
+});
+
+/**
+ * Serialize PTS Chrome navigation between connector capture and param capture.
+ * Prefer short scopes (per connector) so capture can interleave during long jobs.
+ */
+export async function withCdpChromeLock<T>(
+  holder: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  const lockHolder = holder || `cdp-${process.pid}`;
+  if (!cdpLock.acquire(lockHolder, CDP_LOCK_WAIT_MS)) {
+    throw new Error(
+      `Timed out waiting for PTS Chrome CDP lock (${CDP_LOCK_WAIT_MS}ms)`
+    );
+  }
+  trackLockHolder(lockHolder);
+  try {
+    return await fn();
+  } finally {
+    cdpLock.release(lockHolder);
+    if (activeLockHolder === lockHolder) {
+      trackLockHolder(null);
+    }
+  }
+}
+
 const CONNECTOR_TAB_URL_RE = /\/wiring\/face\b/i;
 
 function isConnectorCaptureTab(url: string): boolean {
@@ -17,7 +53,15 @@ function isConnectorCaptureTab(url: string): boolean {
 }
 
 function isDisposableTab(url: string): boolean {
-  return url === "about:blank" || isConnectorCaptureTab(url);
+  return (
+    url === "about:blank" ||
+    url.startsWith("chrome-error://") ||
+    isConnectorCaptureTab(url)
+  );
+}
+
+function isChromeErrorTab(url: string): boolean {
+  return url.startsWith("chrome-error://");
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -80,57 +124,41 @@ export async function createConnectorPage(
 ): Promise<ConnectorPageHandle> {
   let cdpBrowser: Browser | null = null;
   const lockHolder = `connector-${process.pid}`;
-  let lockHeld = false;
   try {
-    if (
-      !cdpLock.acquire(lockHolder, CDP_LOCK_WAIT_MS)
-    ) {
-      throw new Error(
-        `Timed out waiting for PTS Chrome CDP lock (${CDP_LOCK_WAIT_MS}ms)`
-      );
-    }
-    lockHeld = true;
-    cdpBrowser = await chromium.connectOverCDP(CDP_URL);
-    const contexts = cdpBrowser.contexts();
-    if (contexts.length > 0) {
+    return await withCdpChromeLock(lockHolder, async () => {
+      cdpBrowser = await chromium.connectOverCDP(CDP_URL, {
+        timeout: parseInt(process.env.CDP_CONNECT_TIMEOUT_MS || "120000", 10),
+      });
+      const contexts = cdpBrowser.contexts();
+      if (contexts.length === 0) {
+        throw new Error("No CDP browser context");
+      }
       const page = await createCdpPage(cdpBrowser);
       console.log(
         CDP_BACKGROUND_TAB
           ? "Using PTS Chrome (CDP, background tab) for connector capture"
           : "Using PTS Chrome (CDP) for connector capture"
       );
+      const browserRef = cdpBrowser;
       return {
         page,
         usesCdp: true,
         close: async () => {
-          try {
+          await withCdpChromeLock(lockHolder, async () => {
             await page.close().catch(() => undefined);
-            await cdpBrowser?.close().catch(() => undefined);
-          } finally {
-            if (lockHeld) {
-              cdpLock.release(lockHolder);
-              lockHeld = false;
-            }
-          }
+            await browserRef?.close().catch(() => undefined);
+          });
         },
       };
-    }
-    await cdpBrowser.close().catch(() => undefined);
-    if (lockHeld) {
-      cdpLock.release(lockHolder);
-      lockHeld = false;
-    }
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (lockHeld) {
-      cdpLock.release(lockHolder);
-      lockHeld = false;
-    }
     console.warn(
       `CDP connector page unavailable (${msg}) — falling back to headless context`
     );
-    if (cdpBrowser) {
-      await cdpBrowser.close().catch(() => undefined);
+    const browserToClose = cdpBrowser;
+    if (browserToClose) {
+      await browserToClose.close().catch(() => undefined);
     }
   }
 
@@ -187,7 +215,7 @@ export async function pruneOrphanCdpTabs(
     );
     for (const page of disposable) {
       if (keptConnector.has(page)) continue;
-      if (isConnectorCaptureTab(page.url())) continue;
+      if (isConnectorCaptureTab(page.url()) && !isChromeErrorTab(page.url())) continue;
       await page.close().catch(() => undefined);
       closed += 1;
     }

@@ -25,6 +25,8 @@ export interface WiringSaveContext {
   captureGaps?: CaptureGaps;
   /** Re-read cookie file and apply to axios + browser context (connector phase). */
   refreshCookies?: () => Promise<void>;
+  /** True when connector capture uses live PTS Chrome (CDP lock between connectors). */
+  connectorUsesCdp?: boolean;
 }
 
 function relFromRoot(outputRoot: string, absolutePath: string): string {

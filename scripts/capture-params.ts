@@ -194,20 +194,45 @@ async function applyCookies(context: BrowserContext) {
   await context.addCookies(transformedCookies);
 }
 
+async function isCdpPortUp(): Promise<boolean> {
+  try {
+    const res = await fetch(`${CDP_URL.replace(/\/$/, "")}/json/version`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function connectBrowser(
   useCdp: boolean
 ): Promise<{ browser: Browser; closeOnDone: boolean; connectedViaCdp: boolean }> {
   if (useCdp) {
-    try {
-      const browser = await chromium.connectOverCDP(CDP_URL, {
-        timeout: parseInt(process.env.CDP_CONNECT_TIMEOUT_MS || "120000", 10),
-      });
-      console.log(`Connected to Chrome via CDP (${CDP_URL})`);
-      return { browser, closeOnDone: false, connectedViaCdp: true };
-    } catch (err: any) {
-      console.warn(`CDP connect failed: ${err?.message || err}`);
-      console.warn("Start Chrome with: ./scripts/launch-pts-chrome.sh");
-      console.warn("Falling back to headless Playwright + cookies...");
+    const attempts = parseInt(process.env.CDP_CONNECT_ATTEMPTS || "5", 10);
+    const timeoutMs = parseInt(process.env.CDP_CONNECT_TIMEOUT_MS || "120000", 10);
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        const browser = await chromium.connectOverCDP(CDP_URL, { timeout: timeoutMs });
+        console.log(`Connected to Chrome via CDP (${CDP_URL})`);
+        return { browser, closeOnDone: false, connectedViaCdp: true };
+      } catch (err: any) {
+        const msg = err?.message || String(err);
+        if (attempt < attempts) {
+          console.warn(`CDP connect attempt ${attempt}/${attempts} failed: ${msg}`);
+          await sleep(Math.min(15000, 3000 * attempt));
+          continue;
+        }
+        if (await isCdpPortUp()) {
+          throw new Error(
+            `PTS Chrome is running on :9222 but CDP connect failed after ${attempts} attempts. ` +
+              "Bulk may be using Chrome — capture will yield on lock; do not use headless fallback."
+          );
+        }
+        console.warn(`CDP connect failed: ${msg}`);
+        console.warn("Start Chrome with: ./scripts/launch-pts-chrome.sh");
+        console.warn("Falling back to headless Playwright + cookies...");
+      }
     }
   }
 
@@ -782,8 +807,13 @@ async function runCaptureSession(
       }
     } catch (err: any) {
       fail++;
-      consecutiveFails++;
-      console.error(`FAIL ${vehicle.id}: ${err.message || err}`);
+      const errMsg = String(err.message || err);
+      const isLockDefer =
+        deferOnLockBusy && errMsg.includes("Timed out waiting for CDP Chrome lock");
+      if (!isLockDefer) {
+        consecutiveFails++;
+      }
+      console.error(`FAIL ${vehicle.id}: ${errMsg}`);
       if (
         String(err.message || err).includes("PTS session") ||
         String(err.message || err).includes("subscriptionExpired")

@@ -69,6 +69,7 @@ export default async function saveEntireWiring(
 
   let connectorPage: Page | null = null;
   let closeConnectorPage: (() => Promise<void>) | null = null;
+  let connectorUsesCdp = false;
 
   try {
   for (let i = 0; i < toc.length; i++) {
@@ -113,6 +114,8 @@ export default async function saveEntireWiring(
           const handle = await createConnectorPage(browserPage.context());
           connectorPage = handle.page;
           closeConnectorPage = handle.close;
+          connectorUsesCdp = handle.usesCdp;
+          ctx.connectorUsesCdp = connectorUsesCdp;
           const probeUrl = getConnectorProbeUrl(process.cwd());
           console.log("Verifying connector portal access...");
           await probeConnectorAccess(connectorPage, probeUrl);

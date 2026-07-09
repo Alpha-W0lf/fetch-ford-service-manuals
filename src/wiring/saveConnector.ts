@@ -12,6 +12,7 @@ import {
   gapReasonFromPtsError,
   loadConnectorFacePage,
 } from "../ptsAuth";
+import { withCdpChromeLock } from "../cdpConnectorPage";
 
 function relFromRoot(outputRoot: string, absolutePath: string): string {
   return relative(outputRoot, absolutePath).replace(/\\/g, "/");
@@ -65,6 +66,13 @@ export default async function saveConnector(
     url.searchParams.set("bookType", params.bookType);
     url.searchParams.set("languageCode", params.languageCode);
 
+    const runConnectorStep = async <T>(fn: () => Promise<T>): Promise<T> => {
+      if (!ctx?.connectorUsesCdp) {
+        return fn();
+      }
+      return withCdpChromeLock(`connector-${process.pid}`, fn);
+    };
+
     let loaded = false;
     let lastError: unknown;
 
@@ -81,8 +89,10 @@ export default async function saveConnector(
           );
         }
 
-        await loadConnectorFacePage(browserPage, url.toString(), {
-          warmup: attempt > 0,
+        await runConnectorStep(async () => {
+          await loadConnectorFacePage(browserPage, url.toString(), {
+            warmup: attempt > 0,
+          });
         });
         loaded = true;
         consecutiveAuthFailures = 0;
@@ -134,19 +144,21 @@ export default async function saveConnector(
     }
 
     try {
-      try {
-        await browserPage.waitForLoadState("networkidle", { timeout: 150 });
-      } catch {
-        // pass
-      }
+      await runConnectorStep(async () => {
+        try {
+          await browserPage.waitForLoadState("networkidle", { timeout: 150 });
+        } catch {
+          // pass
+        }
 
-      await browserPage.evaluate(
-        'document.getElementById("TerminalPartBtn")?.click()'
-      );
+        await browserPage.evaluate(
+          'document.getElementById("TerminalPartBtn")?.click()'
+        );
 
-      await browserPage.pdf({
-        path: path,
-        landscape: true,
+        await browserPage.pdf({
+          path: path,
+          landscape: true,
+        });
       });
       await ctx?.captureGaps?.resolve(gapId);
     } catch (e) {

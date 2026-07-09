@@ -29,14 +29,17 @@
 
 ## Future (not yet a dev guide)
 
-Phase G from context assessment: pre-commit hooks, watchdog removal, `pipeline-health.sh` consolidation — defer until after Guide 02–03 or post-subscription.
+| Item | Scope |
+|------|-------|
+| **04.2** (proposed) | Unsupervised reliability — REL-01/03/05/06; plan in [checkpoint](../2026-07-09_pipeline_session_checkpoint.md) |
+| **Phase G** | Pre-commit hooks, watchdog decision, `pipeline-health.sh` consolidation |
 
 ## Dependency graph
 
 ```
-01 (executed) → 02 → 03 → 04 (executed) → 04.1 (executed)
+01 (executed) → 02 → 03 → 04 (executed) → 04.1 (executed) → 04.2 (proposed — REL)
                       ↘ 05 (implementation-ready) → 06 (plan)
-                      ↘ Phase G (future — not a numbered guide)
+                      ↘ Phase G (watchdog, hooks)
 ```
 
 ## Ready for implementation?
@@ -44,7 +47,8 @@ Phase G from context assessment: pre-commit hooks, watchdog removal, `pipeline-h
 | Question | Answer |
 |----------|--------|
 | Append RUN-01 fix to Guide 04? | **No** — Guide 04 executed; use **04.1** |
-| Ready for Guide 04.1 code? | **Done** — executed 2026-07-09; operator soak Step 8 pending |
+| Ready for Guide 04.1 code? | **Done** — executed `6c15180`; early soak positive |
+| Ready for Guide 04.2? | **Plan only** — see [checkpoint](../2026-07-09_pipeline_session_checkpoint.md); author dev guide before implementation |
 | More planning passes for Guide 05? | **No** — ready when capture stopped |
 | Ready for Guide 05 code? | **Yes**, after capture stopped + Tom says "follow dev guide 05" |
 | Ready for Guide 06? | **No** — needs Guide 05 executed + operator-filled `legacy_pts_capture.md` |

@@ -2,16 +2,16 @@
 
 **Date:** 2026-07-08  
 **Author:** AI session (Tom-directed)  
-**Status:** Context gathering complete · Dev Guides **01–04 executed** · Guide **05 implementation-ready** · Guide **06 plan only**  
-**Next step:** Execute **Guide 04.1** when bulk stopped (RUN-01); then Guide 05 when capture stopped
+**Status:** Context gathering complete · Dev Guides **01–04.1 executed** · Guide **05 implementation-ready** · Guide **04.2 plan** (unsupervised reliability) · Guide **06 plan only**  
+**Next step:** **Guide 04.2** when bulk stopped (REL-01); Guide 05 when capture stopped
 
 **Workflow position:** Phase 5 output from `meta_context_gathering.md` — foundation hardening initiative (not a Jira ticket).
 
 **Related docs:**
 - `AGENTS.md` — current agent invariants
 - `docs/2026-07-08_pipeline_inventory_and_action_items.md` — operational open items
+- `docs/2026-07-09_pipeline_session_checkpoint.md` — **latest session** (04.1, REL gaps)
 - `docs/known_issues_and_backlog.md` — **canonical issue & tech-debt registry**
-- `docs/pipeline-scheduling.md` — process coordination
 - `second_brain/docs/guides/prompt_work_session_standards.md` — session standards
 - `second_brain/docs/guides/best_practices_ai_native_engineering.md` — guardrails philosophy
 
@@ -45,7 +45,7 @@ Foundation work is successful when:
 - [x] **Orchestration complexity is bounded** — bulk bash split done; `bulk-orchestrator-lib.js` (~668 lines) optional future split
 - [x] **No critical logic duplicated** across TS/JS pairs without a single source of truth (`lib/capture-gaps-rules.js` + Guide 02 contract tests)
 - [x] **CDP coordination is predictable** — Guide 03 executed + live validated
-- [x] **Automated tests exist** for queue, locks, verify/reconcile, orchestrator (68 tests)
+- [x] **Automated tests exist** for queue, locks, verify/reconcile, orchestrator (**75** tests post-04.1)
 - [x] **Regression confidence** — contributor can change lock/queue/orchestrator code with `yarn test`
 - [x] **Ops docs match code** — updated for Guide 04; inventory checkpoint maintained
 

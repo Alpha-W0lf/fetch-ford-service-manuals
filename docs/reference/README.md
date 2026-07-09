@@ -16,13 +16,14 @@
 - [../PIPELINE_OPS.md](../PIPELINE_OPS.md) — operator index
 - [../../BULK_DOWNLOAD_GUIDE.md](../../BULK_DOWNLOAD_GUIDE.md) — subscription strategy and troubleshooting
 - [../pipeline-scheduling.md](../pipeline-scheduling.md) — scheduling, locks, maintenance intervals
-- [../2026-07-08_pipeline_runtime_observations.md](../2026-07-08_pipeline_runtime_observations.md) — live session notes, Chrome visibility
+- [../2026-07-09_pipeline_session_checkpoint.md](../2026-07-09_pipeline_session_checkpoint.md) — **latest session** (04.1, REL gaps)
+- [../2026-07-08_pipeline_runtime_observations.md](../2026-07-08_pipeline_runtime_observations.md) — prior session notes
 
 **Foundation planning & backlog:**
 
 - [../2026-07-08_codebase_foundation_context_assessment.md](../2026-07-08_codebase_foundation_context_assessment.md)
 - [../known_issues_and_backlog.md](../known_issues_and_backlog.md) — **issue & tech-debt registry**
-- [../dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md](../dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md) — RUN-01 fix (implementation-ready)
-- [../dev_guides/README.md](../dev_guides/README.md) — implementation blueprints (01–04 executed; 05–06 planned)
+- [../dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md](../dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md) — RUN-01 fix (**executed** `6c15180`)
+- [../dev_guides/README.md](../dev_guides/README.md) — implementation blueprints (01–04.1 executed; 05–06 planned)
 
 **Agent invariants:** [../../AGENTS.md](../../AGENTS.md)

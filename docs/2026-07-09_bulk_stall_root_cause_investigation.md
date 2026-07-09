@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-09 (~22:57 local investigation)  
 **Incident ID:** RUN-01  
-**Status:** Context complete — **fix planned in Dev Guide 04.1** (not implemented)  
+**Status:** Context complete — **fix executed** Guide 04.1 (`6c15180`); early soak positive  
 **Fix guide:** [dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md](./dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md)
 
 ---

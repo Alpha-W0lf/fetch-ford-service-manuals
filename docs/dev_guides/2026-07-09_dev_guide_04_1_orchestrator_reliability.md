@@ -274,6 +274,6 @@ Implement **full guide in one PR** unless operator needs emergency Step-1-only h
 
 ---
 
-**Status:** **Executed** (2026-07-09) — operator soak Step 8 pending  
+**Status:** **Executed** (2026-07-09, `6c15180`) — early soak positive; REL-01 remains for unsupervised bar  
 **Depends on:** Guide 04 executed, investigation doc  
 **Blocks:** None (Guide 05 independent)

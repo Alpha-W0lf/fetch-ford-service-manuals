@@ -5,11 +5,25 @@
 **Subscription window:** ~72 hours; prioritize tier-1 anchors and trucks/commercial  
 **Guidance applied:** `second_brain/docs/guides/best_practices_ai_native_engineering.md` (simplicity, guardrails, anti-bloat), `best_practices_pr_descriptions_git_workflow.md` (atomic commits, fork-only push), `prompt_work_session_standards.md` (inventory before more patches)
 
-**Related docs:** `AGENTS.md`, `docs/PIPELINE_OPS.md`, `docs/reference/architecture.md`, `BULK_DOWNLOAD_GUIDE.md`, `docs/pipeline-scheduling.md`, [known_issues_and_backlog.md](./known_issues_and_backlog.md) (canonical issue registry)
+**Related docs:** `AGENTS.md`, `docs/PIPELINE_OPS.md`, `docs/reference/architecture.md`, `BULK_DOWNLOAD_GUIDE.md`, `docs/pipeline-scheduling.md`, [known_issues_and_backlog.md](./known_issues_and_backlog.md) (canonical issue registry), [2026-07-09_pipeline_session_checkpoint.md](./2026-07-09_pipeline_session_checkpoint.md) (**latest**)
 
 ---
 
-## Session summary (what actually broke)
+## Session summary (2026-07-09 — Guide 04.1)
+
+| Event | Detail |
+|-------|--------|
+| **RUN-01 fix** | Guide 04.1 implemented (`6c15180`) — removed blocking orchestrator prune; PID stale reap |
+| **Recovery** | Stalled pid 28011 stopped; reconcile; restart pid **33628** at 23:36 |
+| **Soak** | Early positive — OK/INCOMPLETE/OK rotation; new dispatches; no orchestrator freeze |
+| **Reliability gap** | Hung-**alive** workers (REL-01) — next engineering target (Guide 04.2) |
+| **Capture** | Retry pass complete; `needs_params` **10**; process zombie (REL-02) |
+
+Full context: [2026-07-09_pipeline_session_checkpoint.md](./2026-07-09_pipeline_session_checkpoint.md)
+
+---
+
+## Session summary (what actually broke — 2026-07-08)
 
 | Symptom | Root cause | Class |
 |---------|------------|-------|
@@ -27,19 +41,29 @@
 
 Check live: `./scripts/queue-status.sh --health`
 
-| Metric | Last known (2026-07-08 ~22:48) |
+| Metric | Last known (2026-07-09 ~00:00) |
 |--------|--------------------------------|
-| Orchestrator | **Running** pid **28011** (~95 min) — **⚠️ stalled** (0 yarn workers, 2 `downloading`) |
-| Workers | **0 active** — `2016-f-250` log frozen ~22:25; `2018-expedition-max` finished with 1 gap |
-| Complete | **59** |
+| Orchestrator | **Running** pid **33628** (post–04.1 restart ~23:36) |
+| Workers | **2 active** — `2018-f-250`, `2019-f-250` (workshop) |
+| Complete | **61** |
 | Tier 1 | **35/38** |
-| Failed | **19** (stable) |
-| needs_params | **40** (−14 from session start 54) |
-| Param capture | **15 OK**, **32 defer** (retry pass), **4+ FAIL**; pid **29405** healthy |
+| needs_params | **10** (capture retry complete) |
+| Param capture | Retry pass **done**; pid **29405** idle zombie (REL-02) |
 
-**Issue registry:** [known_issues_and_backlog.md](./known_issues_and_backlog.md) — RUN-01 bulk stall, RUN-02 hung prunes
+**Issue registry:** [known_issues_and_backlog.md](./known_issues_and_backlog.md) — RUN-01 fixed; REL-* unsupervised gaps
 
-**Runtime notes:** [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md)
+**Latest checkpoint:** [2026-07-09_pipeline_session_checkpoint.md](./2026-07-09_pipeline_session_checkpoint.md)
+
+**Runtime notes (prior):** [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md)
+
+### Prior checkpoint (2026-07-08 ~22:48 — superseded)
+
+| Metric | Value |
+|--------|-------|
+| Orchestrator | pid 28011 — **stalled** (RUN-01) |
+| Workers | 0 |
+| Complete | 59 |
+| needs_params | 40 |
 
 ### Restart procedure (2026-07-08 ~21:14)
 
@@ -71,8 +95,8 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 |---|------|-----|------------|------------------|-------------------|--------|
 | **P0** | **Never start bulk from Cursor terminal**; use `./scripts/start-bulk-in-terminal.sh` | Only proven stable supervisor path | Low | Bulk stops; lost download hours | None | ✅ Documented |
 | **P0** | Keep PTS Chrome open (`:9222`) + Mac plugged in | Connectors + cookie refresh | Low | Connector/auth failures | None | Ongoing |
-| **P0** | Run param capture in parallel (`./scripts/start-capture-in-terminal.sh`) in 2nd Terminal | 40 vehicles still blocked | Medium | Can't drain full queue | CDP contention (lock mitigates) | **Running — 15 OK** |
-| **P0** | **Bulk stall recovery** — restart bulk if 0 workers + 2 `downloading` >10 min | RUN-01 — orchestrator blocked on prune | Low | Zero bulk throughput | Brief capture CDP contention | **Action needed** |
+| **P0** | **Unsupervised reliability (REL-01)** — hung-alive worker wall clock + log stale reap | Worker can block slot hours while alive | Medium | Wasted subscription hours | Wrong kill threshold | **Guide 04.2** — plan in checkpoint |
+| **P0** | Run param capture in parallel | Drain needs_params | Medium | 10 still blocked | CDP contention | **Retry pass done** — REL-02 clean exit |
 | **P1** | **E-Transit capture** — PTS menu missing model for 2022/23 | Tier-1 blocked; matchers insufficient | Medium | 3 tier-1 vehicles | Wrong workaround | **Open — RUN-06** |
 | **P1** | **Pre-2003 automated capture** (not manual DevTools) | 3 vehicles now; fleet will grow | Medium | Pre-2003 stays blocked | Scope creep mid-sprint | **Backlog — Guide 06** |
 | **P1** | Prove or remove launchd watchdog | Experimental; TCC issues | Medium | No auto-restart overnight | Spurious Terminal tabs | Open |
@@ -109,10 +133,11 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 
 | Debt | Severity | Notes |
 |------|----------|-------|
-| **Bulk orchestrator stall (RUN-01)** | **High** | Hung prune blocks `runOne`; 0 workers, 2 `downloading` |
-| **Hung `prune-cdp-tabs` (RUN-02)** | High | Multiple orphan PIDs; CDP connect hang |
+| **Bulk orchestrator stall (RUN-01)** | ~~High~~ | **Fixed** Guide 04.1 |
+| **Hung-alive worker (REL-01)** | **High** | No wall clock; 2016 TCM episode |
+| **Capture zombie (REL-02)** | Medium | Process idle after session done |
 | **No proven auto-supervisor** | High | Watchdog unverified; Terminal start is the real fix |
-| **40 needs_params** | High (throughput) | Capture retry pass in progress (15 OK) |
+| **40 needs_params** | ~~High~~ | **10** remaining — see checkpoint |
 | **E-Transit PTS availability (RUN-06)** | Medium | Model absent from PTS menu — not matcher issue |
 | **Pre-2003 capture automation** | Medium | Guide 06 — 3 vehicles |
 | **`2011-f-450` incomplete** | Medium | Tier-1 gaps |
@@ -187,4 +212,4 @@ upstream → https://github.com/iamtheyammer/fetch-ford-service-manuals.git (fet
 | 2026-07-08 | Dev Guide 01 — `docs/reference/*`, `PIPELINE_OPS.md`, CDP docs aligned |
 | 2026-07-08 | Guide 04 executed; runtime observations; checkpoint ~22:07 |
 | 2026-07-08 | Guide 06 plan pass; `legacy_pts_capture.md` template |
-| 2026-07-08 | Checkpoint ~22:48 — known_issues registry; bulk stall RUN-01 |
+| 2026-07-09 | Guide 04.1 executed; checkpoint doc; REL gaps; 04.2 outline |

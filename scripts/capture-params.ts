@@ -199,7 +199,9 @@ async function connectBrowser(
 ): Promise<{ browser: Browser; closeOnDone: boolean; connectedViaCdp: boolean }> {
   if (useCdp) {
     try {
-      const browser = await chromium.connectOverCDP(CDP_URL);
+      const browser = await chromium.connectOverCDP(CDP_URL, {
+        timeout: parseInt(process.env.CDP_CONNECT_TIMEOUT_MS || "120000", 10),
+      });
       console.log(`Connected to Chrome via CDP (${CDP_URL})`);
       return { browser, closeOnDone: false, connectedViaCdp: true };
     } catch (err: any) {

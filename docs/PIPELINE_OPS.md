@@ -30,7 +30,13 @@ Mac plugged in; cookies refresh automatically (~3h) while bulk runs.
 
 ---
 
-## Blessed commands
+## Bulk orchestrator (Node)
+
+Entry: `./scripts/start-bulk-in-terminal.sh` → `bulk-download.sh` (lock + trap) → `scripts/bulk-orchestrator.js`.
+
+Logic lives in `lib/bulk-orchestrator-lib.js` (tested). Do not start orchestrator from Cursor/agent shells.
+
+---
 
 | Task | Command |
 |------|---------|

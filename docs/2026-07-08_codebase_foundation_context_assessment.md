@@ -2,8 +2,8 @@
 
 **Date:** 2026-07-08  
 **Author:** AI session (Tom-directed)  
-**Status:** Context gathering complete · Dev Guides **01–03 executed** · Guides **04–06 plans only**  
-**Next step:** Dev Guide 04 when bulk stopped (operator confirmation)
+**Status:** Context gathering complete · Dev Guides **01–04 executed** · Guides **05–06 plans (05 implementation-ready)**  
+**Next step:** Operator bulk soak → restart bulk + capture; then Dev Guide 05 when capture stopped
 
 **Workflow position:** Phase 5 output from `meta_context_gathering.md` — foundation hardening initiative (not a Jira ticket).
 
@@ -56,7 +56,7 @@ Foundation work is successful when:
 |--------|-------|------------|
 | TS + JS + shell files | **75** | Small in file count |
 | Total lines (tracked TS/JS/sh) | **8,788** (`git ls-files` sum, pass 3) | Moderate |
-| Largest files | `capture-params.ts` (**883**), `bulk-download.sh` (**504**), `index.ts` (**383**) | **Oversized** — exceed 300-line maintainability target |
+| Largest files | `capture-params.ts` (**891**), `index.ts` (**383**), `bulk-orchestrator-lib.js` (**~670**) | **capture-params still oversized**; bulk orchestrator split done (Guide 04) |
 | `scripts/` files | **40** | **High ops surface area** relative to core `src/` |
 | `src/` TS files | **30** | Reasonable domain split (workshop / wiring / pre-2003) |
 | Test files | **0** formal (`*.test.*`, `*.spec.*`) | Critical gap |
@@ -89,7 +89,7 @@ The codebase is **not large by industry standards**, but it is **disproportionat
           ┌────────────────────────┼────────────────────────┐
           ▼                        ▼                        ▼
   bulk-download.sh          capture-params.ts        PTS Chrome :9222
-  (bash orchestrator)       (CDP param capture)       (live session)
+  → bulk-orchestrator.js    (CDP param capture)       (live session)
           │                        │
           │ PARALLEL yarn start    │ acquires cdp-chrome.lock
           ▼                        ▼
@@ -153,7 +153,7 @@ The codebase is **not large by industry standards**, but it is **disproportionat
 
 | Issue | Evidence |
 |-------|----------|
-| **504-line bash orchestrator** | `scripts/bulk-download.sh` — circuit breaker, cookies, parallel workers, audits, reconcile |
+| **504-line bash orchestrator** | **Resolved (Guide 04)** — `bulk-orchestrator.js` + thin `bulk-download.sh` |
 | **883-line capture script** | `scripts/capture-params.ts` — CLI, CDP, PTS navigation, network intercept, queue patch, lock, recovery |
 | **Multiple overlapping launchers** | `start-bulk-in-terminal.sh`, `start-bulk-download.sh`, `ensure-bulk-running.sh`, watchdog |
 | **Rapid patches during live run** | CDP yield, prune safety, per-connector lock — correct direction but added under pressure |

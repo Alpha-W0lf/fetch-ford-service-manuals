@@ -4,7 +4,9 @@ Variables read by the bulk pipeline. Defaults shown are code defaults when unset
 
 ---
 
-## Bulk orchestrator (`scripts/bulk-download.sh`)
+## Bulk orchestrator (`scripts/bulk-download.sh` → `scripts/bulk-orchestrator.js`)
+
+Implementation: `lib/bulk-orchestrator-lib.js`, `lib/bulk-circuit-breaker.js`, `lib/bulk-download-status.js`, `lib/bulk-auth-log.js`.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
@@ -19,8 +21,7 @@ Variables read by the bulk pipeline. Defaults shown are code defaults when unset
 | `CIRCUIT_BREAKER_THRESHOLD` | `2` | Auth failures before backoff |
 | `CIRCUIT_BREAKER_BACKOFF_SEC` | `600` | Pause after auth circuit trip |
 | `STALE_GAP_ATTEMPTS` | `10` | Deprioritize stale `incomplete` |
-| `EXCLUDE_CSV` | — | Comma-separated vehicle IDs to skip (internal) |
-| `ROOT` | repo root | Set by bash for inline `node -e` |
+| `EXCLUDE_CSV` | — | Comma-separated vehicle IDs to skip (internal; in-flight workers) |
 
 ---
 

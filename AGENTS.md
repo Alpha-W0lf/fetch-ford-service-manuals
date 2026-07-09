@@ -41,7 +41,7 @@ Watchdog (`./scripts/install-bulk-watchdog.sh`) is **experimental** — do not t
 
 ## Code organization
 
-- **Orchestration:** `scripts/bulk-download.sh`, queue scripts (`queue-lib.js`, `reconcile-queue.js`)
+- **Orchestration:** `scripts/bulk-orchestrator.js`, `lib/bulk-orchestrator-lib.js`, `scripts/bulk-download.sh` (thin wrapper), queue scripts
 - **Verification:** `verify-download-lib.js`, `capture-gaps-lib.js`, `audit-pdf-integrity.js`
 - **PTS CDP:** `src/cdpConnectorPage.ts`, `scripts/capture-params.ts`
 

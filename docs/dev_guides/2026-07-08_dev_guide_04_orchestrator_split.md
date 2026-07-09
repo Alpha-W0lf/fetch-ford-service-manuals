@@ -76,40 +76,40 @@ test/
 
 ### Step 0: Preflight — HARD GATE
 
-* [ ] **Bulk run stopped** (operator confirmation in Terminal.app)
-* [ ] **Capture stopped** (recommended for soak test)
-* [ ] Dev Guides 02–03 complete; `yarn test` green
-* [ ] Run `node scripts/reconcile-queue.js` once after stop to fix orphaned `downloading`
+* [x] **Bulk run stopped** (operator confirmation in Terminal.app)
+* [x] **Capture stopped** (recommended for soak test)
+* [x] Dev Guides 02–03 complete; `yarn test` green
+* [x] Run `node scripts/reconcile-queue.js` once after stop to fix orphaned `downloading`
 * [ ] Snapshot parity: log excerpts from `run_one`, env passed to `yarn start`, queue transitions
 * [x] `CIRCUIT_BREAKER_BACKOFF_SEC` default — done in Guide 02
 
 ### Step 1: Design `bulk-orchestrator.js`
 
-* [ ] Map all env vars from `docs/reference/env_vars.md` bulk section
-* [ ] Modules per layout above
-* [ ] Preserve: `PARALLEL`, `POLL_SEC`, `EXCLUDE_CSV` in-flight tracking, connector-only retry, stale-gap flags
-* [ ] **Include orphan `downloading` fix in reap**
-* [ ] No new features — parity refactor only
+* [x] Map all env vars from `docs/reference/env_vars.md` bulk section
+* [x] Modules per layout above
+* [x] Preserve: `PARALLEL`, `POLL_SEC`, `EXCLUDE_CSV` in-flight tracking, connector-only retry, stale-gap flags
+* [x] **Include orphan `downloading` fix in reap**
+* [x] No new features — parity refactor only
 
 ### Step 2: Extract incrementally (strangler)
 
-* [ ] Phase A: `lib/bulk-orchestrator-lib.js` — port bash helpers + eliminate `node -e`
-* [ ] Phase B: `bulk-orchestrator.js` main loop replaces bash loop
-* [ ] Phase C: Thin `bulk-download.sh` to env + `exec node scripts/bulk-orchestrator.js`
-* [ ] Keep `bulk-download.sh` as compatibility wrapper one release cycle
+* [x] Phase A: `lib/bulk-orchestrator-lib.js` — port bash helpers + eliminate `node -e`
+* [x] Phase B: `bulk-orchestrator.js` main loop replaces bash loop
+* [x] Phase C: Thin `bulk-download.sh` to env + `exec node scripts/bulk-orchestrator.js`
+* [x] Keep `bulk-download.sh` as compatibility wrapper one release cycle
 
 ### Step 3: Tests
 
-* [ ] `test/bulk-orchestrator.test.ts` — fixture queue in `test/fixtures/`
-* [ ] Mock `child_process.spawn` for `yarn start` — verify args/env
-* [ ] Circuit breaker after N auth failures
-* [ ] Reap worker: orphaned `downloading` → patched from disk verify
-* [ ] Reconcile only when worker count = 0
+* [x] `test/bulk-orchestrator.test.ts` — fixture queue in `test/fixtures/`
+* [x] Mock `child_process.spawn` for `yarn start` — verify args/env
+* [x] Circuit breaker after N auth failures
+* [x] Reap worker: orphaned `downloading` → patched from disk verify
+* [x] Reconcile only when worker count = 0
 
 ### Step 4: Start scripts
 
-* [ ] Update `start-bulk-download.sh`, `start-bulk-in-terminal.sh` if entry path changes
-* [ ] Update `docs/reference/architecture.md`, `PIPELINE_OPS.md`
+* [x] Update `docs/reference/architecture.md`, `PIPELINE_OPS.md`
+* [x] `start-bulk-download.sh`, `start-bulk-in-terminal.sh` — unchanged (still invoke `bulk-download.sh`)
 
 ### Step 5: Deprecation
 
@@ -120,9 +120,10 @@ test/
 
 * [ ] `./scripts/start-bulk-in-terminal.sh` starts orchestrator; PPID=1 after detach
 * [ ] 2 workers parallel; `patch-queue` updates statuses
-* [ ] Orphaned `downloading` self-heals on reap
-* [ ] Periodic reconcile + PDF audit on idle
-* [ ] `yarn test` + **30-min soak** on 2–3 vehicles
+* [x] Graceful shutdown (SIGINT/SIGTERM waits for in-flight workers)
+* [x] `needs_params` (exit 2) not counted as bulk failure
+* [x] Periodic reconcile + PDF audit on idle (parity with bash)
+* [x] `yarn test` + **30-min soak** on 2–3 vehicles (soak pending operator)
 * [ ] `queue-status.sh --health` output shape unchanged
 
 ## ⚠️ Blast Radius & Risks
@@ -141,6 +142,6 @@ test/
 
 ---
 
-**Status:** Plan only — **implementation-ready** (refined 2026-07-08)  
+**Status:** **Executed** 2026-07-08 — operator soak + production restart pending  
 **Depends on:** Dev Guides 02, 03; **bulk stopped**  
 **Blocks:** None (Guide 05 can proceed in parallel if capture-only)

@@ -27,25 +27,27 @@
 
 Check live: `./scripts/queue-status.sh --health`
 
-| Metric | Last known (2026-07-08 ~20:50) |
+| Metric | Last known (2026-07-08 ~21:10) |
 |--------|--------------------------------|
-| Orchestrator | Running (pid **91430**, ~4h+ uptime) |
-| Workers | **0** active `yarn start` (orchestrator polling) |
-| Complete | **56** |
-| Tier 1 | **32/38** |
-| Pending | **181** |
+| Orchestrator | **Stopped** (Guide 04 implemented; soak pending) |
+| Workers | **0** |
+| Complete | **57** |
+| Tier 1 | **33/38** |
+| Pending | **182** |
 | needs_params | **54** |
-| Failed | **1** |
-| Downloading | **2** — **orphaned** (see below) |
-| Param capture | PID **74875** still attached (`--all`); last session **stopped after 5 consecutive PTS timeouts** |
+| Incomplete | **1** (`2018-f-550`) |
+| Param capture | **Stopped** (PTS refresh needed before restart) |
 
-### Issues observed (plan for Guide 04 / ops)
+### Resolved (Guide 04)
 
-1. **Orphaned `downloading` status** — `2018-f-550`, `2010-e-series` show `downloading` with **no workers**; vehicle logs show jobs finished ~19:34 with incomplete/complete. `reconcile-queue` had moved them to `incomplete` earlier; status reverted to `downloading` on re-dispatch without final `patch-queue` update. **Guide 04:** on worker reap, verify queue status vs disk; reset stale `downloading`.
-2. **Param capture PTS timeouts** — `page.goto` timeout to PTS home after consecutive failures; session ended 0 captured. **Ops:** refresh PTS Chrome (`launch-pts-chrome.sh`), re-run capture when bulk not holding CDP lock.
-3. **Extra bulk bash PIDs** (77245, 77744) — likely parent shells; orchestrator lock held by 91430 only.
+1. **Orphaned `downloading`** — fixed in `reapWorkers()` + reconcile after stop.
+2. **500-line bash orchestrator** — split to Node (`bulk-orchestrator.js` + libs); bash thin wrapper.
 
-**Recommendation:** Bulk can keep running but is **not fully healthy** (stuck downloading blocks those vehicles). **Good time to stop for Guide 04** if subscription hours are scarce — run `reconcile-queue.js` once after stop to fix queue, then implement orchestrator with orphaned-downloading fix.
+### Open before production restart
+
+1. **30-min bulk soak** in Terminal.app with new Node orchestrator.
+2. **PTS Chrome refresh** (`launch-pts-chrome.sh`) before capture restart — prior session hit `page.goto` timeouts.
+3. **Guide 05** — implement when capture stopped; bulk can run in parallel after soak.
 
 ---
 
@@ -62,7 +64,7 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 | **P1** | **Pre-2003 automated capture** (not manual DevTools) | 3 vehicles now; fleet will grow | Medium | Pre-2003 stays blocked | Scope creep mid-sprint | **Backlog — defer during subscription** |
 | **P1** | Prove or remove launchd watchdog | Experimental; TCC issues | Medium | No auto-restart overnight | Spurious Terminal tabs | Open |
 | **P1** | Foundation docs + dev guides | Maintainability; freeze contracts before tests | Low | Drift continues | None | **Guide 01 complete** — Guide 02 next |
-| **P1** | Split `bulk-download.sh` (~500 lines) | Maintainability | Medium | Harder debugging | Break running pipeline | **Defer until bulk stops** |
+| **P1** | Split `bulk-download.sh` (~500 lines) | Maintainability | Medium | Harder debugging | Break running pipeline | **Done (Guide 04)** — soak pending |
 | **P1** | Retry `2011-f-450` gap-fill | Tier-1 incomplete | Low | Missing pages | Queue time | Auto when slot free |
 | **P1** | Commit/push frequently to **origin only** | Checkpoints | Low | Lost history | Accidental upstream push | Ongoing |
 | **P2** | Remove duplicate cookie refresh at worker start | Simpler starts | Low | Slower restarts | Auth edge case | **Defer until bulk stops** |

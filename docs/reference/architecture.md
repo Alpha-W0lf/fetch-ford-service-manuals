@@ -21,7 +21,9 @@ Download Ford PTS workshop/wiring/connector PDFs for a prioritized vehicle fleet
         ┌───────────────────────┼───────────────────────┐
         ▼                       ▼                       ▼
  bulk-download.sh         capture-params.ts      PTS Chrome :9222
- (bash orchestrator)       (param capture CLI)    (logged-in session)
+ (bash lock + trap)        (param capture CLI)    (logged-in session)
+        │
+        └── bulk-orchestrator.js (Node poll loop)
         │                       │
         │ PARALLEL × yarn start │ patch-queue → pending
         ▼                       ▼
@@ -42,7 +44,7 @@ Download Ford PTS workshop/wiring/connector PDFs for a prioritized vehicle fleet
 | Layer | Location | Responsibility |
 |-------|----------|----------------|
 | **Download core** | `src/` | Single-vehicle job: workshop → wiring → connectors (`yarn start`) |
-| **Ops orchestration** | `scripts/bulk-download.sh`, queue libs | Fleet scheduling, parallel workers, cookies, reconcile |
+| **Ops orchestration** | `scripts/bulk-orchestrator.js`, `lib/bulk-orchestrator-lib.js`, `scripts/bulk-download.sh` (thin wrapper), queue libs | Fleet scheduling, parallel workers, cookies, reconcile |
 | **Param capture** | `scripts/capture-params.ts` | Automate `params.json` from PTS navigation + network intercept |
 | **Verification** | `scripts/verify-download-lib.js`, audits | Disk truth, gaps, PDF integrity |
 | **Operator entry** | `docs/PIPELINE_OPS.md`, `BULK_DOWNLOAD_GUIDE.md` | How to start, health-check, troubleshoot |
@@ -57,7 +59,8 @@ Download Ford PTS workshop/wiring/connector PDFs for a prioritized vehicle fleet
 |------|---------|----------|
 | Headless Playwright | Ephemeral Chromium per `yarn start` | Workshop PDF fetch, wiring page render |
 | Live Chrome CDP | PTS session on `:9222` | Connector PDFs, param capture, cookie export |
-| Bash orchestration | N/A | Bulk polling, worker spawn, periodic maintenance |
+| Bash supervision | N/A | Lock acquire/release, trap cleanup, `caffeinate`/`nohup` entry |
+| Node orchestration | `bulk-orchestrator.js` | Bulk polling, worker spawn, periodic maintenance |
 
 Headless workshop/wiring **do not** acquire `cdp-chrome.lock`.
 
@@ -162,8 +165,8 @@ Canonical blocking rules: [schemas.md](./schemas.md#capture-gap-blocking-canonic
 |-------|-------|
 | 01 | This reference (docs) |
 | 02 | Test harness + gap/path consolidation | **Executed** |
-| 03 | CDP coordination tests | Plan (implementation-ready) |
-| 04 | Bulk orchestrator split (bulk stopped) |
+| 03 | CDP coordination tests | **Executed** |
+| 04 | Bulk orchestrator split (bulk stopped) | **Executed** (30-min soak before production restart) |
 | 05 | Capture-params modularization |
 | 06 | Pre-2003 capture automation |
 

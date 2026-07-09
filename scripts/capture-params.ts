@@ -196,10 +196,16 @@ async function applyCookies(context: BrowserContext) {
 
 async function isCdpPortUp(): Promise<boolean> {
   try {
-    const res = await fetch(`${CDP_URL.replace(/\/$/, "")}/json/version`, {
-      signal: AbortSignal.timeout(5000),
-    });
-    return res.ok;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+      const res = await fetch(`${CDP_URL.replace(/\/$/, "")}/json/version`, {
+        signal: controller.signal,
+      });
+      return res.ok;
+    } finally {
+      clearTimeout(timer);
+    }
   } catch {
     return false;
   }

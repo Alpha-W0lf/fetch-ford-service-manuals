@@ -122,13 +122,14 @@ export interface ConnectorPageHandle {
 export async function createConnectorPage(
   fallbackContext: BrowserContext
 ): Promise<ConnectorPageHandle> {
-  let cdpBrowser: Browser | null = null;
+  const pending: { browser: Browser | null } = { browser: null };
   const lockHolder = `connector-${process.pid}`;
   try {
     return await withCdpChromeLock(lockHolder, async () => {
-      cdpBrowser = await chromium.connectOverCDP(CDP_URL, {
+      const cdpBrowser = await chromium.connectOverCDP(CDP_URL, {
         timeout: parseInt(process.env.CDP_CONNECT_TIMEOUT_MS || "120000", 10),
       });
+      pending.browser = cdpBrowser;
       const contexts = cdpBrowser.contexts();
       if (contexts.length === 0) {
         throw new Error("No CDP browser context");
@@ -156,9 +157,9 @@ export async function createConnectorPage(
     console.warn(
       `CDP connector page unavailable (${msg}) — falling back to headless context`
     );
-    const browserToClose = cdpBrowser;
-    if (browserToClose) {
-      await browserToClose.close().catch(() => undefined);
+    if (pending.browser) {
+      await pending.browser.close().catch(() => undefined);
+      pending.browser = null;
     }
   }
 

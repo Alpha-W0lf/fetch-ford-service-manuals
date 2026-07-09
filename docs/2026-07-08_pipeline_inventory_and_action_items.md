@@ -27,15 +27,17 @@
 
 Check live: `./scripts/queue-status.sh --health`
 
-| Metric | Last known (2026-07-08 ~21:32) |
+| Metric | Last known (2026-07-08 ~22:07) |
 |--------|--------------------------------|
-| Orchestrator | **Running** — Node `bulk-orchestrator.js` pid **28011** |
-| Workers | **2** — `2016-f-250` (wiring, ~1982 log lines), `2018-expedition-max` (workshop PDFs) |
-| Complete | **59** (`2018-f-550`, `2004-f-150` this session) |
+| Orchestrator | **Running** — Node `bulk-orchestrator.js` pid **28011** (~53 min) |
+| Workers | **2** — `2016-f-250` (connectors, ~1935 PDFs, 16 timeout retries), `2018-expedition-max` (connectors, ~1851 PDFs) |
+| Complete | **59** (+2 this session: `2004-f-150`, `2018-f-550`) |
 | Tier 1 | **35/38** |
-| Failed | **19** (auth burst ~02:29 UTC — see below) |
-| needs_params | **50** (−4 from capture OKs) |
-| Param capture | **Running** — 4 OK this session; on `2010-taurus` |
+| Failed | **19** (auth burst ~02:29 UTC — **stable**) |
+| needs_params | **47** (−7 capture OKs) |
+| Param capture | **Running** — **7 OK**, **21+ deferred** (first pass); retry pass pending |
+
+**Runtime notes:** [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md) — Chrome visibility, logging gaps, issues A–E.
 
 ### Restart procedure (2026-07-08 ~21:14)
 
@@ -76,7 +78,7 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 | **P1** | Retry `2011-f-450` gap-fill | Tier-1 incomplete | Low | Missing pages | Queue time | Auto when slot free |
 | **P1** | Commit/push frequently to **origin only** | Checkpoints | Low | Lost history | Accidental upstream push | Ongoing |
 | **P2** | Remove duplicate cookie refresh at worker start | Simpler starts | Low | Slower restarts | Auth edge case | **Defer until bulk stops** |
-| **P2** | Demote idle PDF spot-check / periodic reconcile to opt-in | Simpler hot loop | Low | Less drift detection | Miss corrupt PDFs | **Defer until bulk stops** |
+| **P2** | Orchestrator heartbeat + capture pass summary logging | Debug long runs without vehicle log tail | Low | Harder ops triage | Log volume | Open — see runtime observations doc |
 | **P2** | Consolidate start paths in docs | Consistency | Low | Confusion | None | ✅ Done |
 | **P2** | `AGENTS.md` repo guardrails | Prevent AI slop | Medium | Over-engineering | Instruction drift | ✅ Done |
 | **P2** | Uninstall watchdog after subscription | Cleanup | Low | Leftover launchd | None | Post-subscription |
@@ -151,7 +153,7 @@ upstream → https://github.com/iamtheyammer/fetch-ford-service-manuals.git (fet
 
 1. Should launchd watchdog be finished (FDA grant / different launcher) or removed until post-subscription?
 2. Accept `incomplete` for fill years and move on, or always gap-retry tier-1?
-3. Pre-2003 automation design: single `capture-params` branch vs dedicated legacy script?
+3. Pre-2003 automation design: **single legacy branch in `src/capture/`** (Guide 06) — exploration doc required first
 
 ## Pre-2003 automation (explicit backlog)
 
@@ -166,7 +168,9 @@ upstream → https://github.com/iamtheyammer/fetch-ford-service-manuals.git (fet
 3. Capture wiring params via existing network intercept
 4. Reuse `src/pre-2003/` download path in `yarn start`
 
-**Queue today:** 3 pre-2003 vehicles (years 2000–2002). Correctly deprioritized while 54 modern `needs_params` remain.
+**Queue today:** 3 pre-2003 vehicles (`2000-excursion`, `2001-excursion`, `2002-excursion`). Correctly deprioritized while modern `needs_params` remain.
+
+**Guide 06:** Expanded plan + exploration template `docs/reference/legacy_pts_capture.md` — **not implementation-ready** until operator fills exploration.
 
 ---
 
@@ -177,3 +181,5 @@ upstream → https://github.com/iamtheyammer/fetch-ford-service-manuals.git (fet
 | 2026-07-08 | Initial inventory after supervision root-cause session |
 | 2026-07-08 | Checkpoint ~18:00 — 55 complete, tier 1 31/38; docs + AGENTS.md |
 | 2026-07-08 | Dev Guide 01 — `docs/reference/*`, `PIPELINE_OPS.md`, CDP docs aligned |
+| 2026-07-08 | Guide 04 executed; runtime observations; checkpoint ~22:07 |
+| 2026-07-08 | Guide 06 plan pass; `legacy_pts_capture.md` template |

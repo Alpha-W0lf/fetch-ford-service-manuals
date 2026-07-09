@@ -166,7 +166,7 @@ Canonical blocking rules: [schemas.md](./schemas.md#capture-gap-blocking-canonic
 | 01 | This reference (docs) |
 | 02 | Test harness + gap/path consolidation | **Executed** |
 | 03 | CDP coordination tests | **Executed** |
-| 04 | Bulk orchestrator split (bulk stopped) | **Executed** (30-min soak before production restart) |
+| 04 | Bulk orchestrator split (bulk stopped) | **Executed** |
 | 05 | Capture-params modularization |
 | 06 | Pre-2003 capture automation |
 

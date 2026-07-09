@@ -36,6 +36,23 @@ Each `yarn start` job runs sequentially:
 
 `--connectorsOnly` skips workshop/wiring when pages already exist and only retries connectors.
 
+## Why Chrome may look idle (normal)
+
+Most bulk work does **not** produce visible browser windows:
+
+| Phase | Browser | Visible? |
+|-------|---------|----------|
+| Workshop PDFs | Headless Playwright (`HEADLESS_BROWSER` default on) | **No window** |
+| Wiring pages | Headless Playwright | **No window** |
+| Connectors | PTS Chrome via CDP (`:9222`) | Often **background tab** (`CDP_BACKGROUND_TAB=1` default) |
+| Param capture | PTS Chrome via CDP | Navigates when lock free; **defers** with log line when bulk holds lock |
+
+**Symptoms that are still healthy:** Dock shows one PTS Chrome; Activity Monitor shows `node`/`yarn` workers; `logs/<vehicle>.log` growing; capture log shows `OK:` or `deferring to retry pass`.
+
+**Debug only:** `CDP_BACKGROUND_TAB=0` or `HEADLESS_BROWSER=false` — not for parallel production runs.
+
+See [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md) for a live session write-up.
+
 ## Queue priority (`scripts/queue-lib.js`)
 
 Lower `queueRank` = picked sooner. Tier 1 anchors get a −10 boost.

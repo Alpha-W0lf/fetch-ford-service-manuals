@@ -2,8 +2,8 @@
 
 **Date:** 2026-07-08  
 **Author:** AI session (Tom-directed)  
-**Status:** Context gathering complete · Dev Guides **01–04 executed** · Guides **05–06 plans (05 implementation-ready)**  
-**Next step:** Operator bulk soak → restart bulk + capture; then Dev Guide 05 when capture stopped
+**Status:** Context gathering complete · Dev Guides **01–04 executed** · Guide **05 implementation-ready** · Guide **06 plan only**  
+**Next step:** Let subscription pipelines run; execute Guide 05 when capture can be stopped
 
 **Workflow position:** Phase 5 output from `meta_context_gathering.md` — foundation hardening initiative (not a Jira ticket).
 
@@ -40,13 +40,13 @@
 
 Foundation work is successful when:
 
-- [ ] **Architecture is documented** in one canonical doc (components, locks, state machine, blessed start paths)
-- [ ] **Orchestration complexity is bounded** — no single file >400 lines without explicit justification; bash hot path split or wrapped in tested Node
-- [ ] **No critical logic duplicated** across TS/JS pairs without a single source of truth
-- [ ] **CDP coordination is predictable** — lock scopes documented and tested; capture and bulk do not deadlock or starve each other
-- [ ] **Automated tests exist** for queue, locks, verify/reconcile, and path resolution (pure functions first)
-- [ ] **Regression confidence** — a contributor can change lock or queue code and know within minutes if behavior broke
-- [ ] **Ops docs match code** — `AGENTS.md`, `BULK_DOWNLOAD_GUIDE.md`, `pipeline-scheduling.md` stay aligned after refactors
+- [x] **Architecture is documented** in one canonical doc (components, locks, state machine, blessed start paths)
+- [x] **Orchestration complexity is bounded** — bulk bash split done; `bulk-orchestrator-lib.js` (~668 lines) optional future split
+- [ ] **No critical logic duplicated** across TS/JS pairs without a single source of truth (`captureGaps` aligned in Guide 02)
+- [x] **CDP coordination is predictable** — Guide 03 executed + live validated
+- [x] **Automated tests exist** for queue, locks, verify/reconcile, orchestrator (68 tests)
+- [x] **Regression confidence** — contributor can change lock/queue/orchestrator code with `yarn test`
+- [x] **Ops docs match code** — updated for Guide 04; inventory checkpoint maintained
 
 ---
 
@@ -386,27 +386,28 @@ Aligned with `prompt_work_session_standards.md`: **no implementation until dev g
 
 **Dev guide:** `docs/dev_guides/2026-07-08_dev_guide_03_cdp_coordination.md` — **executed**
 
-### Phase D — Orchestration refactor (after subscription or bulk idle)
+### Phase D — Orchestration refactor
 
-- [ ] Split `bulk-download.sh` — Node orchestrator + thin bash wrapper for Terminal/caffeinate
-- [ ] Split `capture-params.ts` — `src/capture/` module: navigation, intercept, lock policy, CLI
-- [ ] Integration tests with fixture queue + mock CDP lock
+- [x] Split `bulk-download.sh` — Node orchestrator + thin bash wrapper (`5050e89`, live soak 2026-07-08)
+- [ ] Split `capture-params.ts` — `src/capture/` (Guide 05 — implementation-ready)
+- [x] Integration tests for orchestrator (`test/bulk-orchestrator.test.ts`)
 
-**Dev guide candidate:** `docs/dev_guides/2026-07-08_dev_guide_04_orchestrator_split.md` — **plan only**
+**Dev guide:** `docs/dev_guides/2026-07-08_dev_guide_04_orchestrator_split.md` — **executed**
 
 ### Phase E — Capture modularization
 
 - [ ] Extract capture modules without changing PTS navigation behavior
-- [ ] Table-driven `modelMatchers` registry
+- [ ] Table-driven `modelMatchers` + `isRetryableCaptureError` registry tests
 
-**Dev guide candidate:** `docs/dev_guides/2026-07-08_dev_guide_05_capture_modularization.md` — **plan only**
+**Dev guide:** `docs/dev_guides/2026-07-08_dev_guide_05_capture_modularization.md` — **implementation-ready**
 
 ### Phase F — Capture completeness (legacy)
 
 - [ ] Pre-2003 automated branch in capture (not manual DevTools)
+- [ ] Operator exploration: `docs/reference/legacy_pts_capture.md`
 - [ ] Defer `<2003` until modern queue drained — policy in architecture doc
 
-**Dev guide candidate:** `docs/dev_guides/2026-07-08_dev_guide_06_legacy_capture.md` — **plan only**
+**Dev guide:** `docs/dev_guides/2026-07-08_dev_guide_06_legacy_capture.md` — **plan** (blocked on Guide 05 + exploration doc)
 
 ### Phase G — Hardening & cleanup
 

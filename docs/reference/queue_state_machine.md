@@ -86,7 +86,7 @@ A vehicle can be:
 | Policy | Default | Override |
 |--------|---------|----------|
 | Tier-1 gap-fill | Retry `incomplete` tier 1 before moving on | Operator may accept `incomplete` for fill years when subscription time is low |
-| Pre-2003 capture | Deferred in capture sort; `--include-legacy` does not implement capture yet | Dev Guide 06 |
+| Pre-2003 capture | Deferred in capture sort; `--include-legacy` filter only until Guide 06 | [legacy_pts_capture.md](./legacy_pts_capture.md) + Dev Guide 06 |
 
 ---
 

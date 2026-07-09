@@ -19,6 +19,7 @@ Mac plugged in; cookies refresh automatically (~3h) while bulk runs.
 
 | Doc | Use when |
 |-----|----------|
+| [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md) | Why Chrome looks idle, session progress, known issues |
 | [reference/architecture.md](./reference/architecture.md) | Understanding components, locks, data flow |
 | [reference/queue_state_machine.md](./reference/queue_state_machine.md) | Queue statuses, who writes what |
 | [reference/schemas.md](./reference/schemas.md) | JSON contracts, gap blocking rules |

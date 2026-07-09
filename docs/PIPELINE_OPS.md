@@ -72,7 +72,7 @@ Logic lives in `lib/bulk-orchestrator-lib.js` (tested). Do not start orchestrato
 
 ## Foundation work
 
-Dev guides: [dev_guides/README.md](./dev_guides/README.md) — Guide 01 executed; 02–06 plans only.
+Dev guides: [dev_guides/README.md](./dev_guides/README.md) — Guides 01–04 executed; **04.1 implementation-ready**; 05–06 planned.
 
 Context assessment: [2026-07-08_codebase_foundation_context_assessment.md](./2026-07-08_codebase_foundation_context_assessment.md).
 

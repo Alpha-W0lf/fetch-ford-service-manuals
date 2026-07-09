@@ -8,9 +8,11 @@ import {
   idleLimitTicks,
   inFlightExcludeCsv,
   orchestratorTick,
+  patchStaleWorkerFromDisk,
   resolveFinalVehicleStatus,
   runOne,
   reapWorkers,
+  reapStaleWorkers,
 } from "../lib/bulk-orchestrator-lib.js";
 import {
   recentAuthFailureCount,
@@ -84,6 +86,26 @@ describe("bulk-orchestrator-lib", () => {
         version: 1,
         updatedAt: new Date().toISOString(),
         gaps: [],
+      })
+    );
+  }
+
+  function mkIncompleteManual(root: string, outputDir: string): void {
+    const full = path.join(root, outputDir);
+    writeMinimalPdfs(full, 55);
+    fs.writeFileSync(path.join(full, "cover.html"), "<html></html>");
+    const wiring = path.join(full, "Wiring");
+    fs.mkdirSync(wiring, { recursive: true });
+    fs.writeFileSync(path.join(wiring, "toc.json"), "[]");
+    const conn = path.join(wiring, "Connector Views");
+    fs.mkdirSync(conn, { recursive: true });
+    fs.writeFileSync(path.join(conn, "connectors.json"), "[]");
+    fs.writeFileSync(
+      path.join(full, "capture-gaps.json"),
+      JSON.stringify({
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        gaps: [{ id: "wiring-connector:1", reason: "test" }],
       })
     );
   }
@@ -327,5 +349,220 @@ describe("bulk-orchestrator-lib", () => {
     };
     await reapWorkers(config, state as never, { log: () => {} } as never);
     expect(state.failures).toBe(1);
+  });
+
+  it("patchStaleWorkerFromDisk marks incomplete from disk gaps (not failed)", () => {
+    const root = mkRoot();
+    const outputDir = "manuals/stale-incomplete";
+    mkIncompleteManual(root, outputDir);
+    const queuePath = writeQueue(root, [
+      {
+        id: "stale-inc",
+        paramsFile: "vehicles/stale/params.json",
+        outputDir,
+        status: "downloading",
+      },
+    ]);
+    const config = baseConfig(root, queuePath);
+    const result = patchStaleWorkerFromDisk(config, "stale-inc", {
+      log: () => {},
+    } as never);
+    expect(result).toEqual({
+      patched: true,
+      status: "incomplete",
+      exitCode: 1,
+    });
+    const q = JSON.parse(fs.readFileSync(queuePath, "utf8"));
+    expect(q.vehicles[0].status).toBe("incomplete");
+  });
+
+  it("patchStaleWorkerFromDisk marks complete when disk verifies", () => {
+    const root = mkRoot();
+    const outputDir = "manuals/stale-complete";
+    mkCompleteManual(root, outputDir);
+    const queuePath = writeQueue(root, [
+      {
+        id: "stale-ok",
+        outputDir,
+        status: "downloading",
+      },
+    ]);
+    const config = baseConfig(root, queuePath);
+    const result = patchStaleWorkerFromDisk(config, "stale-ok", {
+      log: () => {},
+    } as never);
+    expect(result).toEqual({
+      patched: true,
+      status: "complete",
+      exitCode: 0,
+    });
+    const q = JSON.parse(fs.readFileSync(queuePath, "utf8"));
+    expect(q.vehicles[0].status).toBe("complete");
+  });
+
+  it("reapStaleWorkers frees dead-pid slot with disk-truth status", () => {
+    const root = mkRoot();
+    const outputDir = "manuals/reap-stale";
+    mkIncompleteManual(root, outputDir);
+    const queuePath = writeQueue(root, [
+      {
+        id: "dead-worker",
+        outputDir,
+        status: "downloading",
+      },
+    ]);
+    const config = baseConfig(root, queuePath);
+    const state = {
+      failures: 0,
+      inFlight: [
+        {
+          vid: "dead-worker",
+          done: false,
+          exitCode: null,
+          pid: 42,
+          reaped: false,
+          _resolveWorker: null as ((code: number) => void) | null,
+        },
+      ],
+    };
+    reapStaleWorkers(config, state as never, {
+      log: () => {},
+      isProcessAlive: () => false,
+    } as never);
+    expect(state.inFlight[0].done).toBe(true);
+    expect(state.inFlight[0].reaped).toBe(true);
+    expect(state.inFlight[0].exitCode).toBe(1);
+    const q = JSON.parse(fs.readFileSync(queuePath, "utf8"));
+    expect(q.vehicles[0].status).toBe("incomplete");
+  });
+
+  it("runOne returns early when entry.reaped without double markStatus", async () => {
+    const root = mkRoot();
+    const outputDir = "manuals/reaped-guard";
+    const paramsRel = "vehicles/reaped/params.json";
+    fs.mkdirSync(path.dirname(path.join(root, paramsRel)), { recursive: true });
+    fs.writeFileSync(path.join(root, paramsRel), "{}");
+    mkIncompleteManual(root, outputDir);
+    const queuePath = writeQueue(root, [
+      {
+        id: "reaped-v",
+        paramsFile: paramsRel,
+        outputDir,
+        status: "downloading",
+      },
+    ]);
+    const config = baseConfig(root, queuePath);
+    config.cookieRefreshMin = 0;
+
+    const entry = {
+      vid: "reaped-v",
+      done: false,
+      exitCode: null as number | null,
+      pid: null as number | null,
+      reaped: false,
+      _resolveWorker: null as ((code: number) => void) | null,
+    };
+
+    const deps = {
+      log: () => {},
+      nowSec: () => Math.floor(Date.now() / 1000),
+      fetch: async () => ({ ok: false }),
+      spawnSync: () => ({ status: 0, stdout: "", stderr: "" }),
+      spawn: (cmd: string, args: string[]) => {
+        if (cmd === "yarn") {
+          return {
+            pid: 999,
+            stdout: { pipe: () => {} },
+            stderr: { pipe: () => {} },
+            on: (ev: string, fn: (code: number) => void) => {
+              if (ev === "close") {
+                setTimeout(() => {
+                  entry.reaped = true;
+                  entry.exitCode = 1;
+                  fn(0);
+                }, 0);
+              }
+            },
+          };
+        }
+        return {
+          stdout: { pipe: () => {} },
+          stderr: { pipe: () => {} },
+          on: () => {},
+        };
+      },
+      sleep: async () => {},
+    };
+
+    const code = await runOne(
+      config,
+      {
+        v: { id: "reaped-v", paramsFile: paramsRel, outputDir },
+        workshop: true,
+        wiring: true,
+        stale: false,
+      },
+      deps as never,
+      null,
+      entry as never
+    );
+
+    expect(code).toBe(1);
+    const q = JSON.parse(fs.readFileSync(queuePath, "utf8"));
+    expect(q.vehicles[0].status).toBe("downloading");
+  });
+
+  it("runOne never spawnSyncs prune-cdp-tabs", async () => {
+    const root = mkRoot();
+    const outputDir = "manuals/no-prune";
+    const paramsRel = "vehicles/noprune/params.json";
+    fs.mkdirSync(path.dirname(path.join(root, paramsRel)), { recursive: true });
+    fs.writeFileSync(path.join(root, paramsRel), "{}");
+    const queuePath = writeQueue(root, [
+      {
+        id: "no-prune-v",
+        paramsFile: paramsRel,
+        outputDir,
+        status: "pending",
+      },
+    ]);
+    const config = baseConfig(root, queuePath);
+    config.cookieRefreshMin = 0;
+
+    const spawnSyncCalls: string[][] = [];
+    const deps = {
+      log: () => {},
+      nowSec: () => Math.floor(Date.now() / 1000),
+      fetch: async () => ({ ok: false }),
+      spawnSync: (_cmd: string, args: string[]) => {
+        spawnSyncCalls.push(args);
+        return { status: 0, stdout: "", stderr: "" };
+      },
+      spawn: (cmd: string, _args: string[]) => ({
+        pid: 1001,
+        stdout: { pipe: () => {} },
+        stderr: { pipe: () => {} },
+        on: (ev: string, fn: (code: number) => void) => {
+          if (cmd === "yarn" && ev === "close") setTimeout(() => fn(0), 0);
+        },
+      }),
+      sleep: async () => {},
+    };
+
+    await runOne(
+      config,
+      {
+        v: { id: "no-prune-v", paramsFile: paramsRel, outputDir },
+        workshop: true,
+        wiring: true,
+        stale: false,
+      },
+      deps as never
+    );
+
+    const pruneCalls = spawnSyncCalls.filter((args) =>
+      args.some((a) => String(a).includes("prune-cdp-tabs"))
+    );
+    expect(pruneCalls).toHaveLength(0);
   });
 });

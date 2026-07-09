@@ -19,6 +19,24 @@ const cdpLock = require("../scripts/cdp-chrome-lock") as {
 const CDP_URL = process.env.CDP_URL || "http://127.0.0.1:9222";
 const CDP_LOCK_WAIT_MS = parseInt(process.env.CDP_LOCK_WAIT_MS || "600000", 10);
 const CDP_BACKGROUND_TAB = process.env.CDP_BACKGROUND_TAB !== "0";
+const CDP_DISCONNECT_TIMEOUT_MS = parseInt(
+  process.env.CDP_DISCONNECT_TIMEOUT_MS || "10000",
+  10
+);
+
+async function closeBrowserWithTimeout(browser: Browser | null): Promise<void> {
+  if (!browser) return;
+  const closePromise = browser.close().catch(() => undefined);
+  const timeoutPromise = new Promise<void>((resolve) => {
+    setTimeout(() => {
+      console.warn(
+        `CDP browser.close() timed out after ${CDP_DISCONNECT_TIMEOUT_MS}ms — continuing`
+      );
+      resolve();
+    }, CDP_DISCONNECT_TIMEOUT_MS);
+  });
+  await Promise.race([closePromise, timeoutPromise]);
+}
 
 /** Release CDP lock on abrupt process exit (stale-PID cleanup is the backup). */
 let activeLockHolder: string | null = null;
@@ -254,6 +272,6 @@ export async function pruneOrphanCdpTabs(
     console.warn(`CDP tab prune skipped (${msg})`);
     return { closed: 0, remainingConnectorTabs: 0 };
   } finally {
-    await cdpBrowser?.close().catch(() => undefined);
+    await closeBrowserWithTimeout(cdpBrowser);
   }
 }

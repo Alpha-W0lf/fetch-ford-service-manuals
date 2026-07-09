@@ -60,7 +60,7 @@ Download Ford PTS workshop/wiring/connector PDFs for a prioritized vehicle fleet
 | Headless Playwright | Ephemeral Chromium per `yarn start` | Workshop PDF fetch, wiring page render |
 | Live Chrome CDP | PTS session on `:9222` | Connector PDFs, param capture, cookie export |
 | Bash supervision | N/A | Lock acquire/release, trap cleanup, `caffeinate`/`nohup` entry |
-| Node orchestration | `bulk-orchestrator.js` | Bulk polling, worker spawn, periodic maintenance |
+| Node orchestration | `bulk-orchestrator.js` | Bulk polling, worker spawn, PID-aware stale reap, periodic maintenance |
 
 Headless workshop/wiring **do not** acquire `cdp-chrome.lock`.
 
@@ -92,7 +92,9 @@ Headless workshop/wiring **do not** acquire `cdp-chrome.lock`.
 | **Bulk connectors** | Per connector navigation via `withCdpChromeLock()` in `src/cdpConnectorPage.ts` / `src/wiring/saveConnector.ts` | `CDP_LOCK_WAIT_MS` (default 600000 ms) |
 | **Param capture** | Per vehicle during `captureParams()` in `scripts/capture-params.ts` | First pass: `CDP_LOCK_YIELD_MS` (default 120s) then **defer** to retry pass; retry pass: `CDP_LOCK_WAIT_MS` |
 
-**Tab hygiene:** `src/cdpConnectorPage.ts` prunes per [cdp_tab_hygiene.md](./cdp_tab_hygiene.md).
+**Tab hygiene:** `src/cdpConnectorPage.ts` prunes per [cdp_tab_hygiene.md](./cdp_tab_hygiene.md). Each `yarn start` worker prunes at job end; orchestrator does **not** prune after workers (Guide 04.1 — avoids blocking `spawnSync` on the parallel completion path). Shutdown prune runs from `bulk-download.sh` cleanup trap only.
+
+**Worker lifecycle (Guide 04.1):** `startWorkers` tracks `{ vid, pid, done, reaped }` per slot. `orchestratorTick` calls `reapStaleWorkers` before `reapWorkers` — dead yarn PIDs patch queue status from **disk truth** (`patchStaleWorkerFromDisk`), not yarn exit code. Fleet reconcile while workers run stays disabled; per-vehicle stale reap handles orphaned `downloading` rows.
 
 **Incident lesson (2026-07-08):** Aggressive tab prune during an active connector job closed a live tab → worker error. Prune rules are now conservative.
 

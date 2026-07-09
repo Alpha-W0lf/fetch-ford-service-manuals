@@ -99,10 +99,11 @@ Add **`patchStaleWorkerFromDisk(config, vehicleId, deps)`**:
 ```javascript
 // Pseudocode — map disk only, no yarn exit code
 const meta = readVehicleQueueStatus(config.queuePath, vehicleId);
+if (!meta || meta.v.status !== "downloading") return { patched: false };
 const disk = resolveDownloadStatus(config.root, meta.v.outputDir, meta.workshop, meta.wiring);
 const status = disk === "complete" ? "complete" : disk === "incomplete" ? "incomplete" : "failed";
 patchVehicleStatus(config.queuePath, vehicleId, status);
-return { status, exitCode: status === "complete" ? 0 : 1 };
+return { patched: true, status, exitCode: status === "complete" ? 0 : 1 };
 ```
 
 Use this from `reapStaleWorkers`, not `fixOrphanDownloading(..., 1, ...)`.
@@ -146,7 +147,7 @@ module.exports = { isProcessAlive };
 
 ### Step 3: PID-aware `spawnYarnStart` + `runOne` entry
 
-* [ ] `inFlight` entry shape: `{ vid, done, exitCode, pid, reaped, _resolveWorker }`
+* [ ] `inFlight` entry shape: `{ vid, done, exitCode, pid: null, reaped: false, _resolveWorker: null }` — initialize all fields in `startWorkers` before `runOne`
 * [ ] `spawnYarnStart(config, yarnArgs, logPath, entry, deps)`:
   * `let settled = false`; `finish(code)` idempotent resolve
   * `entry.pid = child.pid`; `entry._resolveWorker = finish`
@@ -159,9 +160,11 @@ module.exports = { isProcessAlive };
 ### Step 4: `patchStaleWorkerFromDisk` + `reapStaleWorkers`
 
 * [ ] `patchStaleWorkerFromDisk(config, vehicleId, deps)` — disk-truth mapping (see Design decisions)
+  * Early return `{ patched: false }` if vehicle missing or queue status ≠ `downloading`
 * [ ] `reapStaleWorkers(config, state, deps)`:
   * For each `inFlight` where `!done && pid && !isProcessAlive(pid)`:
-    * `{ status, exitCode } = patchStaleWorkerFromDisk(...)` (only if queue still `downloading`)
+    * `patchResult = patchStaleWorkerFromDisk(...)` — skip if `!patchResult.patched`
+    * `{ status, exitCode } = patchResult`
     * `entry.reaped = true`; `entry.done = true`; `entry.exitCode = exitCode`
     * `entry._resolveWorker?.(exitCode)`
     * Log: `[reap-stale] ${vid} pid ${pid} dead → ${status}`
@@ -271,6 +274,6 @@ Implement **full guide in one PR** unless operator needs emergency Step-1-only h
 
 ---
 
-**Status:** **Implementation-ready** (pass 3 final — 2026-07-09)  
+**Status:** **Executed** (2026-07-09) — operator soak Step 8 pending  
 **Depends on:** Guide 04 executed, investigation doc  
 **Blocks:** None (Guide 05 independent)

@@ -45,6 +45,7 @@ Implementation: `lib/bulk-orchestrator-lib.js`, `lib/bulk-circuit-breaker.js`, `
 | `CDP_LOCK_WAIT_MS` | `600000` | Max wait to acquire CDP lock (connectors, capture retry pass) |
 | `CDP_LOCK_YIELD_MS` | `120000` | Capture first pass: wait then defer if busy |
 | `CDP_CONNECT_TIMEOUT_MS` | `120000` / `30000` | Connect timeout (context-dependent) |
+| `CDP_DISCONNECT_TIMEOUT_MS` | `10000` | Max wait for `browser.close()` after CDP tab prune (Guide 04.1) |
 | `CDP_CONNECT_ATTEMPTS` | `5` | Capture connect retries |
 | `CDP_BACKGROUND_TAB` | `1` (on) | Open connector tabs in background (`0` = disable) |
 | `USE_CDP` | on | Capture: set `false` to force headless |

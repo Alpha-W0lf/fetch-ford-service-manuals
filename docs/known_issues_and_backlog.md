@@ -17,8 +17,8 @@
 
 | ID | Severity | Issue | Evidence | Mitigation / future fix |
 |----|----------|-------|----------|------------------------|
-| **RUN-01** | **P0** | **Bulk orchestrator stall** | [Investigation](./2026-07-09_bulk_stall_root_cause_investigation.md) | **Workaround:** kill prune child; restart bulk from Terminal.app. **Fix:** [Guide 04.1](./dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md) — **implementation-ready** |
-| **RUN-02** | P1 | **Hung `prune-cdp-tabs.ts` processes** | Orchestrator child + 3h orphans from prior sessions (s022) | Kill stale prunes; single-flight prune; timeout on `browser.close()` |
+| **RUN-01** | **P0** | **Bulk orchestrator stall** | [Investigation](./2026-07-09_bulk_stall_root_cause_investigation.md) | **Fix deployed** Guide 04.1 (2026-07-09) — operator soak Step 8 pending |
+| **RUN-02** | P1 | **Hung `prune-cdp-tabs.ts` processes** | Orchestrator child + 3h orphans from prior sessions (s022) | `CDP_DISCONNECT_TIMEOUT_MS` in Guide 04.1; kill stale prunes manually if needed |
 | **RUN-03** | P1 | **`2016-f-250` connector job interrupted** | 2302 PDFs; log ends mid-connector save; prior INCOMPLETE in bulk log | Will retry on orchestrator restart; expect gap registry update |
 | **RUN-04** | P1 | **`2018-expedition-max` incomplete** | 2219 PDFs; `Capture incomplete: 1 gap (wiring-connector:1)` | Hybrid-complete or gap-fill on retry |
 | **RUN-05** | P1 | **Auth burst — 19 `failed`** | ~02:29 UTC rapid 403s; stable since | Auto-retry via queue rank; re-login PTS if count climbs |
@@ -82,8 +82,9 @@
 | CDP session-long lock starves capture | Per-connector lock + capture defer | Guide 03 |
 | Aggressive tab prune closed live connector tab | Safe prune rules | Guide 03 + `cdp_tab_hygiene.md` |
 | `captureGaps` TS/JS contract drift | `lib/capture-gaps-rules.js` + tests | Guide 02 |
-| No unit tests / CI | 68 Vitest tests + `.github/workflows/test.yml` | Guide 02 |
+| No unit tests / CI | 75 Vitest tests + `.github/workflows/test.yml` | Guide 02 + 04.1 |
 | Orphan `downloading` on worker exit | `fixOrphanDownloading` in `reapWorkers` | Guide 04 — **extended by 04.1** `reapStaleWorkers` for `done: false` |
+| Bulk orchestrator parallel stall (RUN-01) | Removed blocking orchestrator prune; PID stale reap | Guide 04.1 |
 
 ---
 
@@ -109,7 +110,7 @@
 | **Guide 05** | Capture modularization | **Next** — implementation-ready |
 | **Guide 06** | Pre-2003 legacy capture | After 05 + `legacy_pts_capture.md` filled |
 | **Phase G** | Pre-commit, health consolidation, orchestrator heartbeat, prune timeout, watchdog decision | Post-subscription or maintenance window |
-| **Guide 04.1** | Orchestrator reliability: remove blocking prune, PID-aware reap — [dev guide](./dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md) | **P0** — **implementation-ready** |
+| **Guide 04.1** | Orchestrator reliability | **Executed** (2026-07-09) — operator soak pending |
 | **Guide 07** (not authored) | E-Transit PTS availability / alternate capture path | If tier-1 blocked after retry |
 
 ---
@@ -119,7 +120,7 @@
 1. **Watchdog:** Finish (FDA grant) vs remove post-subscription?
 2. **Tier-1 incomplete policy:** Always gap-retry vs accept `incomplete` and move on?
 3. **E-Transit:** Skip tier-1, manual params, or alternate PTS navigation?
-4. **Bulk stall (RUN-01):** Restart bulk now vs wait for capture retry pass to finish?
+4. **Bulk stall (RUN-01):** Fix deployed — restart bulk from Terminal.app for soak verification |
 
 ---
 
@@ -127,4 +128,4 @@
 
 | Date | Update |
 |------|--------|
-| 2026-07-08 | Initial registry — consolidates inventory, runtime observations, context assessment |
+| 2026-07-09 | Guide 04.1 executed — RUN-01 fix deployed; 75 tests |

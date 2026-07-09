@@ -174,6 +174,8 @@ Guide 04.1 was **necessary** for parallel orchestration. It is **not sufficient*
 
 **Operator:** Restart bulk when ready: `./scripts/start-bulk-in-terminal.sh` — watch for `[heartbeat]` and `[reap-hung]` in bulk log. Full 4h+ soak pending.
 
+**Smoke test (2026-07-09 ~01:36 local):** Bulk restarted via `start-bulk-in-terminal.sh` on commit `7d2f918`. Log `logs/bulk-download-20260709-0136.log` shows `[heartbeat]` every ~5s, `[reap-prune]` killed RUN-02 orphans (91052/91119/…). Capture restarted via `start-capture-in-terminal.sh --limit 3` — REL-02 exit pending session completion.
+
 ---
 
 ## Guide 04.2 — implementation-ready (superseded)

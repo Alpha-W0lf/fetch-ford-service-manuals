@@ -72,6 +72,12 @@ Headless workshop/wiring **do not** acquire `cdp-chrome.lock`.
 - **Scope:** One bulk orchestrator at a time
 - **Stale:** Removed when holder PID is dead
 
+### Queue patch lock
+
+- **Path:** `templates/vehicles.json.patch-lock/` (via `lib/patch-queue.js`)
+- **Purpose:** Serialize concurrent status patches from bulk workers and param capture
+- **Stale:** Removed when holder PID is dead
+
 ### CDP Chrome lock
 
 - **Path:** `logs/cdp-chrome.lock/`
@@ -102,7 +108,7 @@ Headless workshop/wiring **do not** acquire `cdp-chrome.lock`.
 
 | Store | Path | Git | Writers |
 |-------|------|-----|---------|
-| Queue | `templates/vehicles.json` | ignored | `patch-queue.js` (atomic), reconcile/backfill (whole-file) |
+| Queue | `templates/vehicles.json` | ignored | `patch-queue.js` (serialized lock + atomic rename), reconcile/backfill (whole-file) |
 | Params | `vehicles/<id>/params.json` | ignored | capture-params, manual |
 | Artifacts | `manuals/<id>/` | ignored | `yarn start` |
 | Gaps | `manuals/<id>/capture-gaps.json` | ignored | `src/captureGaps.ts`, backfill |

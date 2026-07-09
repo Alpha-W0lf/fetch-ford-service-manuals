@@ -17,7 +17,7 @@ Variables read by the bulk pipeline. Defaults shown are code defaults when unset
 | `PDF_AUDIT_EVERY_MIN` | `120` | PDF spot-check when idle (`0` = off) |
 | `PDF_AUDIT_SAMPLE` | `50` | PDFs per spot-check |
 | `CIRCUIT_BREAKER_THRESHOLD` | `2` | Auth failures before backoff |
-| `CIRCUIT_BREAKER_BACKOFF_SEC` | `600` (documented) | Pause after auth circuit trip — **note:** comment documents default but bash line assignment is missing in `bulk-download.sh`; fix in Guide 04 or small hotfix |
+| `CIRCUIT_BREAKER_BACKOFF_SEC` | `600` | Pause after auth circuit trip |
 | `STALE_GAP_ATTEMPTS` | `10` | Deprioritize stale `incomplete` |
 | `EXCLUDE_CSV` | — | Comma-separated vehicle IDs to skip (internal) |
 | `ROOT` | repo root | Set by bash for inline `node -e` |
@@ -48,6 +48,14 @@ Variables read by the bulk pipeline. Defaults shown are code defaults when unset
 | `CDP_BACKGROUND_TAB` | `1` (on) | Open connector tabs in background (`0` = disable) |
 | `USE_CDP` | on | Capture: set `false` to force headless |
 | `HEADLESS_BROWSER` | on | Playwright headless unless `false` |
+
+---
+
+## Queue patch (`lib/patch-queue.js`)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `PATCH_QUEUE_LOCK_MS` | `30000` | Max wait for `vehicles.json.patch-lock` before patch fails |
 
 ---
 

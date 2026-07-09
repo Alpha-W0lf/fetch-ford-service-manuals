@@ -45,7 +45,7 @@ bulk connector          capture-params
 
 ### Step 0: Preflight
 
-* [ ] Dev Guide 02 complete (Vitest + basic lock tests)
+* [x] Dev Guide 02 complete (Vitest + lock/patch-queue tests)
 * [ ] Read `pruneCdpOrphanTabs` connector-job-active branch (`cdpConnectorPage.ts` ~214–230)
 * [ ] Read `runCaptureSession` defer path (`capture-params.ts` ~787–796, ~817–818)
 

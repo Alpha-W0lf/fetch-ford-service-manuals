@@ -123,6 +123,6 @@ Do **not** emit to gitignored `dist/`. Use committed `lib/` or keep tested `.js`
 
 ---
 
-**Status:** **Executed** (2026-07-08)  
+**Status:** **Executed** (2026-07-08) · post-pass: patch-queue serialization lock, `isStaleIncomplete` tests, `@types/node` 20  
 **Depends on:** Dev Guide 01 (executed), Tom approval on schemas  
 **Blocks:** Dev Guide 03

@@ -72,7 +72,7 @@ The codebase is **not large by industry standards**, but it is **disproportionat
 
 1. **Three runtime modes** interact: headless Playwright, live Chrome CDP, and bash orchestration.
 2. **Two languages** (TypeScript + bash + ad hoc Node scripts) implement overlapping concerns.
-3. **Filesystem-backed state** (`vehicles.json`, `capture-gaps.json`, lock dirs) has **partial** write safety: `patch-queue.js` (atomic tmp+rename) for per-vehicle status from bulk and capture; **whole-file rewrites** still used by `reconcile-queue.js`, `backfill-capture-gaps.js`, `generate-vehicle-queue.js`, `append-vehicle-queue.js` — run reconcile only when workers idle (bulk already does this).
+3. **Filesystem-backed state** (`vehicles.json`, `capture-gaps.json`, lock dirs) has **layered** write safety: `lib/patch-queue.js` (mkdir lock + atomic tmp+rename) serializes per-vehicle status from bulk and capture; **whole-file rewrites** still used by `reconcile-queue.js`, `backfill-capture-gaps.js`, `generate-vehicle-queue.js`, `append-vehicle-queue.js` — run reconcile only when workers idle (bulk already does this).
 4. **No automated safety net** — every fix is validated only by a live 72-hour subscription run.
 
 **Maintaining and implementing high-confidence fixes is getting harder**, not because `src/wiring/` is unmaintainable, but because **orchestration + concurrency + CDP coordination** were added quickly without tests or a single architectural document.
@@ -260,7 +260,7 @@ Truth is split across `AGENTS.md`, `BULK_DOWNLOAD_GUIDE.md`, `docs/pipeline-sche
 | **Live subscription pressure** | Patches land during 72h window; no time to refactor |
 | **No tests** | Lock/CDP/queue changes are high-risk |
 | **Shared Chrome** | Capture and bulk are coupled by CDP mutex + browser state |
-| **Filesystem queue races** | Mitigated for worker status via `patch-queue.js`; reconcile/backfill still rewrite full JSON when workers idle |
+| **Filesystem queue races** | Mitigated: `patch-queue` serializes patches; reconcile/backfill still rewrite full JSON when workers idle |
 | **AI-assisted rapid growth** | 25 commits/day added ops features faster than architecture absorbed |
 | **Oversized files** | Hard for humans and agents to edit without unintended side effects |
 | **Implicit state machine** | `vehicles.json` statuses (`needs_params`, `pending`, `downloading`, `incomplete`, `failed`, `complete`) — rules spread across `bulk-download.sh`, `reconcile-queue.js`, `queue-lib.js`, `patch-queue.js`, `backfill-capture-gaps.js` |
@@ -296,7 +296,7 @@ Scores are for **maintainability + confidence to change**, not "does it download
 | **Queue / verify / reconcile libs** | **6** | Good ideas; need tests + schema |
 | **Documentation (ops)** | **7** | Reference + PIPELINE_OPS added; inventory may lag live pipeline |
 | **Documentation (dev/onboarding)** | **6** | Dev guides 01–06 exist; README upstream-centric |
-| **Test infrastructure** | **6** | Vitest + 37 tests; patch-queue, gaps, locks, verify |
+| **Test infrastructure** | **7** | Vitest + 44 tests; gaps, locks, patch-queue serialization, queue stale rank |
 | **Modularity / DRY** | **5** | TS/JS duplication; script sprawl |
 | **Simplicity** | **5** | Many scripts; overlapping launch paths |
 | **Extensibility (pre-2003, new vehicle types)** | **4** | Pre-2003 not automated; matchers ad hoc |

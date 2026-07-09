@@ -45,7 +45,7 @@
 
 | Writer | Mechanism | When safe |
 |--------|-----------|-----------|
-| `patch-queue.js` | Read → patch one vehicle → tmp + rename | Anytime — **atomic file replace** (valid JSON guaranteed; concurrent patches to different vehicles can still race — last rename wins) |
+| `patch-queue.js` | mkdir lock + read → patch one vehicle → tmp + rename | Anytime — **serialized** via `<queue>.patch-lock/`; valid JSON + no lost updates between concurrent bulk/capture patches |
 | `reconcile-queue.js` | Whole-file rewrite | Workers idle (bulk does this when idle) |
 | `backfill-capture-gaps.js` | Whole-file rewrite | Manual / startup (optional) |
 | `generate-vehicle-queue.js` | **Destructive** rebuild | Never on live progress — use `append-vehicle-queue.js` |

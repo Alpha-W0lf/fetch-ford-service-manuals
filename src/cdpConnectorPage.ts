@@ -1,4 +1,11 @@
 import { chromium, Browser, BrowserContext, Page } from "playwright";
+import {
+  isChromeErrorTab,
+  isConnectorCaptureTab,
+  isDisposableTab,
+  isSafePruneDuringConnectorJob,
+  shouldSkipDisposableTabClose,
+} from "../lib/cdp-tab-hygiene";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const cdpLock = require("../scripts/cdp-chrome-lock") as {
@@ -46,24 +53,6 @@ export async function withCdpChromeLock<T>(
       trackLockHolder(null);
     }
   }
-}
-
-const CONNECTOR_TAB_URL_RE = /\/wiring\/face\b/i;
-
-function isConnectorCaptureTab(url: string): boolean {
-  return CONNECTOR_TAB_URL_RE.test(url);
-}
-
-function isDisposableTab(url: string): boolean {
-  return (
-    url === "about:blank" ||
-    url.startsWith("chrome-error://") ||
-    isConnectorCaptureTab(url)
-  );
-}
-
-function isChromeErrorTab(url: string): boolean {
-  return url.startsWith("chrome-error://");
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -214,7 +203,7 @@ export async function pruneOrphanCdpTabs(
     if (connectorJobActive) {
       for (const page of pages) {
         const url = page.url();
-        if (url === "about:blank" || isChromeErrorTab(url)) {
+        if (isSafePruneDuringConnectorJob(url)) {
           await page.close().catch(() => undefined);
           closed += 1;
         }
@@ -244,8 +233,8 @@ export async function pruneOrphanCdpTabs(
       connectorTabs.slice(Math.max(0, connectorTabs.length - maxConnectorTabs))
     );
     for (const page of disposable) {
-      if (keptConnector.has(page)) continue;
-      if (isConnectorCaptureTab(page.url()) && !isChromeErrorTab(page.url())) continue;
+      const url = page.url();
+      if (shouldSkipDisposableTabClose(url, keptConnector.has(page))) continue;
       await page.close().catch(() => undefined);
       closed += 1;
     }

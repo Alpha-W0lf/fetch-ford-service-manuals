@@ -40,6 +40,24 @@ describe("cdp-chrome-lock", () => {
     expect(isLocked(dir)).toBe(false);
   });
 
+  it("holder mismatch on release is no-op (lock stays held)", () => {
+    const dir = lockDir();
+    expect(acquire("connector-a", 0, dir)).toBe(true);
+    release("connector-b", dir);
+    expect(isLocked(dir)).toBe(true);
+    release("connector-a", dir);
+    expect(isLocked(dir)).toBe(false);
+  });
+
+  it("CDP_LOCK_WAIT_MS path: acquire succeeds after prior holder releases", () => {
+    const dir = lockDir();
+    expect(acquire("connector-bulk", 0, dir)).toBe(true);
+    expect(acquire("capture-params", 0, dir)).toBe(false);
+    release("connector-bulk", dir);
+    expect(acquire("capture-params", 0, dir)).toBe(true);
+    release("capture-params", dir);
+  });
+
   it("removeStaleLockIfNeeded clears dead pid", () => {
     const dir = lockDir();
     fs.mkdirSync(dir, { recursive: true });

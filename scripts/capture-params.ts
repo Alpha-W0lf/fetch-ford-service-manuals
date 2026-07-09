@@ -27,6 +27,15 @@ const cdpLock = require("./cdp-chrome-lock") as {
   isLocked: () => boolean;
   lockInfo: () => { holder: string; pid: string } | null;
 };
+const {
+  shouldDeferOnLockAcquireFailure,
+  shouldDeferOnLockTimeoutError,
+  lockWaitLabel,
+} = require("../lib/cdp-capture-defer") as {
+  shouldDeferOnLockAcquireFailure: (defer: boolean, acquired: boolean) => boolean;
+  shouldDeferOnLockTimeoutError: (defer: boolean, errMsg: string) => boolean;
+  lockWaitLabel: (defer: boolean, lockWaitMs: number) => string;
+};
 import { chromium, Page, Frame, Request, Browser, BrowserContext } from "playwright";
 import qs from "qs";
 import transformCookieString from "../src/transformCookieString";
@@ -775,7 +784,7 @@ async function runCaptureSession(
 
   console.log(
     `Pacing: ${CAPTURE_DELAY_SEC}s between vehicles, pause ${CAPTURE_PAUSE_SEC}s every ${CAPTURE_PAUSE_EVERY}, stop after ${CAPTURE_MAX_CONSECUTIVE_FAILS} consecutive fails` +
-      (deferOnLockBusy ? `; CDP yield ${Math.round(lockWaitMs / 1000)}s then defer` : `; CDP wait up to ${Math.round(lockWaitMs / 1000)}s`)
+      (useCdp ? `; ${lockWaitLabel(deferOnLockBusy, lockWaitMs)}` : "")
   );
 
   for (let i = 0; i < targets.length; i++) {
@@ -785,15 +794,14 @@ async function runCaptureSession(
     let deferredBusy = false;
     try {
       if (useCdp) {
-        if (!cdpLock.acquire(lockHolder, lockWaitMs)) {
+        const acquired = cdpLock.acquire(lockHolder, lockWaitMs);
+        if (shouldDeferOnLockAcquireFailure(deferOnLockBusy, acquired)) {
           const holder = cdpLock.lockInfo()?.holder || "unknown";
-          if (deferOnLockBusy) {
-            logStep(`CDP busy (${holder}) — deferring to retry pass`);
-            deferred.push(vehicle);
-            deferredBusy = true;
-          } else {
-            throw new Error(`Timed out waiting for CDP Chrome lock (${lockWaitMs}ms)`);
-          }
+          logStep(`CDP busy (${holder}) — deferring to retry pass`);
+          deferred.push(vehicle);
+          deferredBusy = true;
+        } else if (!acquired) {
+          throw new Error(`Timed out waiting for CDP Chrome lock (${lockWaitMs}ms)`);
         } else {
           lockHeld = true;
         }
@@ -814,8 +822,7 @@ async function runCaptureSession(
     } catch (err: any) {
       fail++;
       const errMsg = String(err.message || err);
-      const isLockDefer =
-        deferOnLockBusy && errMsg.includes("Timed out waiting for CDP Chrome lock");
+      const isLockDefer = shouldDeferOnLockTimeoutError(deferOnLockBusy, errMsg);
       if (!isLockDefer) {
         consecutiveFails++;
       }

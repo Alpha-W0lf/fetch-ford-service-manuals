@@ -118,6 +118,14 @@ function modelMatchers(ptsModel: string): string[] {
     return ["Police Interceptor Utility", "Explorer"];
   if (m === "Police Interceptor Sedan")
     return ["Police Interceptor Sedan", "Taurus"];
+  if (m === "E-Transit")
+    return [
+      "E-Transit",
+      "E Transit",
+      "E-Transit Cargo Van",
+      "E-Transit Cargo",
+      "E-Transit™",
+    ];
   return [m];
 }
 
@@ -358,7 +366,22 @@ async function selectModel(vid: VidContext, ptsModel: string) {
   const partial = vid.locator("#modelList a").filter({ hasText: ptsModel });
   if (await tryClick(partial)) return;
 
-  throw new Error(`Model not found in PTS menu: ${ptsModel}`);
+  if (/e[\s-]*transit/i.test(ptsModel)) {
+    const eTransit = vid.locator("#modelList a").filter({ hasText: /e[\s-]*transit/i });
+    if (await tryClick(eTransit)) return;
+  }
+
+  const available = await vid
+    .locator("#modelList a")
+    .evaluateAll((els) =>
+      els.map((el) => (el.textContent || "").trim()).filter(Boolean)
+    )
+    .catch(() => [] as string[]);
+  const hint =
+    available.length > 0
+      ? ` Available models: ${available.slice(0, 20).join(", ")}${available.length > 20 ? "…" : ""}`
+      : "";
+  throw new Error(`Model not found in PTS menu: ${ptsModel}.${hint}`);
 }
 
 async function waitForVehicleCommitted(page: Page, timeoutMs = 90000) {

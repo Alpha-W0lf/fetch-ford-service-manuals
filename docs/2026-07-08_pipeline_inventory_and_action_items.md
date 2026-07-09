@@ -27,22 +27,23 @@
 
 Check live: `./scripts/queue-status.sh --health`
 
-| Metric | Last known (2026-07-08 ~18:00) |
+| Metric | Last known (2026-07-08 ~19:00) |
 |--------|--------------------------------|
-| Orchestrator | Running (pid 91430, **PPID=1**, ~1h48m+ uptime) |
-| Workers | **2** parallel |
-| Complete | **55** |
-| Tier 1 | **31/38** |
-| Incomplete | 1 (`2011-f-450` — gaps on disk) |
-| Pending | 161 |
-| needs_params | 75 |
-| Param capture | **Running** (Terminal; `logs/capture-params-20260708-1811.log`) |
+| Orchestrator | Running (pid 91430, **PPID=1**, ~3h+ uptime) |
+| Workers | **2** parallel (`yarn start`) |
+| Complete | **56** |
+| Tier 1 | **32/38** |
+| Pending | 181 |
+| needs_params | **54** (down from 75 at session start) |
+| Failed | 1 |
+| Downloading | 2 |
+| Param capture | **Running** (Terminal; `logs/capture-params-20260708-1828.log`) |
 
-**Recently completed this run:** `2018-f-350`, `2018-f-450`, `2011-f-550` (verified).
+**Recently completed this run:** `2004-f-150`, `2008-f-150`, `2011-e-series`, plus earlier `2018-f-350`, `2011-f-550`.
 
-**Active (last check):** `2010-e-series`, `2018-f-550` (retry after auth failure; circuit breaker refreshed cookies).
+**Active (last check):** `2018-f-550` (bulk worker); param capture on `--all` (CDP mode).
 
-**Recommendation:** **Do not stop or relaunch** while healthy. Restart only if orchestrator down or 0 workers for >10 minutes.
+**Recommendation:** **Do not stop or relaunch** while healthy. Restart only if orchestrator down or 0 workers for >10 minutes. **Param capture must restart** after code changes to `capture-params.ts` (running process does not hot-reload).
 
 ---
 
@@ -54,7 +55,9 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 |---|------|-----|------------|------------------|-------------------|--------|
 | **P0** | **Never start bulk from Cursor terminal**; use `./scripts/start-bulk-in-terminal.sh` | Only proven stable supervisor path | Low | Bulk stops; lost download hours | None | ✅ Documented |
 | **P0** | Keep PTS Chrome open (`:9222`) + Mac plugged in | Connectors + cookie refresh | Low | Connector/auth failures | None | Ongoing |
-| **P0** | Run param capture in parallel (`./scripts/start-capture-in-terminal.sh`) in 2nd Terminal | 75 vehicles blocked | Medium | Can't drain full queue | CDP contention (lock mitigates) | **Running** |
+| **P0** | Run param capture in parallel (`./scripts/start-capture-in-terminal.sh`) in 2nd Terminal | 54 vehicles still blocked | Medium | Can't drain full queue | CDP contention (lock mitigates) | **Running** |
+| **P1** | **E-Transit `modelMatchers` fix** (`capture-params.ts`) | `2022/23/24-e-transit` fail: menu label mismatch | Low | 3 tier-1 vehicles blocked | Wrong alias if PTS label differs | **Fixed in code — restart capture to pick up** |
+| **P1** | **Pre-2003 automated capture** (not manual DevTools) | 3 vehicles now; fleet will grow | Medium | Pre-2003 stays blocked | Scope creep mid-sprint | **Backlog — defer during subscription** |
 | **P1** | Prove or remove launchd watchdog | Experimental; TCC issues | Medium | No auto-restart overnight | Spurious Terminal tabs | Open |
 | **P1** | Update `BULK_DOWNLOAD_GUIDE.md` | Single ops doc | Low | Repeat mis-starts | Doc drift | ✅ Done |
 | **P1** | Split `bulk-download.sh` (~500 lines) | Maintainability | Medium | Harder debugging | Break running pipeline | **Defer until bulk stops** |
@@ -91,7 +94,10 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 | **504-line bash orchestrator** | Medium | Split after bulk run ends |
 | **Lock patterns** (bulk + CDP) | Low | Documented in `AGENTS.md`; freeze |
 | **Duplicate `~/bin/ford-bulk-watchdog.sh`** | Low | Re-run install after `ensure-bulk-running.sh` changes |
-| **75 needs_params** | High (throughput) | Start param capture in 2nd Terminal |
+| **54 needs_params** | High (throughput) | Param capture running; restart after capture code changes |
+| **E-Transit naming** | Medium | `modelMatchers` + regex fallback in `capture-params.ts`; verify on next capture pass |
+| **Pre-2003 capture automation** | Medium | Must automate eventually (`pre_2003.alphabeticalIndexURL` branch); not manual — 3 vehicles deferred |
+| **PTS `subscriptionExpired` false alarm** | Medium | Stale session recovery in `ptsAuth.ts` + `recover-pts-chrome-session.js` (pushed `0fe1a35`) |
 | **`2011-f-450` incomplete** | Medium | 2054 PDFs; gaps remain |
 | **`2018-f-550` auth retry** | Watch | Circuit breaker tripped once; retry in progress |
 
@@ -120,8 +126,23 @@ upstream → https://github.com/iamtheyammer/fetch-ford-service-manuals.git (fet
 ## Open questions
 
 1. Should launchd watchdog be finished (FDA grant / different launcher) or removed until post-subscription?
-2. Run param capture overnight in second Terminal window?
-3. Accept `incomplete` for fill years and move on, or always gap-retry tier-1?
+2. Accept `incomplete` for fill years and move on, or always gap-retry tier-1?
+3. Pre-2003 automation design: single `capture-params` branch vs dedicated legacy script?
+
+## Pre-2003 automation (explicit backlog)
+
+**Policy:** No manual DevTools workflow — pre-2003 vehicles must be captured automatically like the rest of the fleet.
+
+**Current state:** `capture-params.ts` only implements the 2003+ year/model → VIN → Workshop/Wiring intercept flow. `--include-legacy` queues pre-2003 vehicles but does not implement capture. Placeholder `pre_2003.alphabeticalIndexURL` in generated params is not valid.
+
+**Future implementation (post-subscription or when queue is unblocked):**
+
+1. Detect `modelYear < 2003` in `capture-params.ts`
+2. Navigate Workshop → select manual → capture real Alphabetical Index URL
+3. Capture wiring params via existing network intercept
+4. Reuse `src/pre-2003/` download path in `yarn start`
+
+**Queue today:** 3 pre-2003 vehicles (years 2000–2002). Correctly deprioritized while 54 modern `needs_params` remain.
 
 ---
 
@@ -131,3 +152,4 @@ upstream → https://github.com/iamtheyammer/fetch-ford-service-manuals.git (fet
 |------|--------|
 | 2026-07-08 | Initial inventory after supervision root-cause session |
 | 2026-07-08 | Checkpoint ~18:00 — 55 complete, tier 1 31/38; docs + AGENTS.md |
+| 2026-07-08 | Checkpoint ~19:00 — 56 complete, tier 1 32/38, needs_params 54; E-Transit matchers; pre-2003 automation backlog |

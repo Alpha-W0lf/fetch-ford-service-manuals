@@ -18,9 +18,10 @@
 - [../pipeline-scheduling.md](../pipeline-scheduling.md) — scheduling, locks, maintenance intervals
 - [../2026-07-08_pipeline_runtime_observations.md](../2026-07-08_pipeline_runtime_observations.md) — live session notes, Chrome visibility
 
-**Foundation planning:**
+**Foundation planning & backlog:**
 
 - [../2026-07-08_codebase_foundation_context_assessment.md](../2026-07-08_codebase_foundation_context_assessment.md)
-- [../dev_guides/README.md](../dev_guides/README.md) — implementation blueprints (01–04 executed; 05–06 plans)
+- [../known_issues_and_backlog.md](../known_issues_and_backlog.md) — **issue & tech-debt registry**
+- [../dev_guides/README.md](../dev_guides/README.md) — implementation blueprints (01–04 executed; 05–06 planned)
 
 **Agent invariants:** [../../AGENTS.md](../../AGENTS.md)

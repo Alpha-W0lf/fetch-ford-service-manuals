@@ -10,6 +10,7 @@
 **Related docs:**
 - `AGENTS.md` — current agent invariants
 - `docs/2026-07-08_pipeline_inventory_and_action_items.md` — operational open items
+- `docs/known_issues_and_backlog.md` — **canonical issue & tech-debt registry**
 - `docs/pipeline-scheduling.md` — process coordination
 - `second_brain/docs/guides/prompt_work_session_standards.md` — session standards
 - `second_brain/docs/guides/best_practices_ai_native_engineering.md` — guardrails philosophy
@@ -212,16 +213,16 @@ Recent session proved:
 - Error propagation and logging split across tee, vehicle logs, orchestrator log
 - macOS-specific assumptions (Terminal.app, launchd watchdog, no flock)
 
-### 8. Tooling and quality gates
+### 8. Tooling and quality gates — **partially addressed (Guide 02)**
 
-| Gap | Evidence |
-|-----|----------|
-| No test runner | `package.json` has no `test` script; no vitest/jest |
-| No CI | No `.github/workflows/*` |
-| `tsconfig.json` scope | Default includes `src/` only — **`scripts/*.ts` not type-checked by `tsc`** unless invoked via ts-node per file |
-| Prettier scope | `"format": "prettier --write src/**/*.ts"` — **scripts excluded** |
-| `dist/` gitignored | Compiled-output consolidation must use a **committed** path (e.g. `lib/` or shared `.js` with tests), not `dist/` |
-| Runtime state gitignored | `templates/vehicles.json`, `manuals/`, `vehicles/*/params.json`, `templates/cookieString.txt` — tests **must** use temp fixtures, never mutate operator queue |
+| Gap | Status |
+|-----|--------|
+| Test runner | ✅ `yarn test` (Vitest, 68 tests) |
+| CI | ✅ `.github/workflows/test.yml` |
+| `tsconfig.json` scope | **Open** — `scripts/*.ts` not type-checked by default `tsc` |
+| Prettier scope | **Open** — `scripts/` excluded from format script |
+| Pre-commit hooks | **Open** — Phase G |
+| Runtime state gitignored | Tests use fixtures — documented |
 
 ### 9. Auth / cookie path (under-documented in architecture)
 
@@ -230,11 +231,11 @@ Recent session proved:
 - `test-connector-cookies.ts` is a **live** preflight, not a unit test
 - Cookie staleness + `subscriptionExpired` recovery (`ptsAuth.ts`, `recover-pts-chrome-session.js`) are production-critical but not modeled in one doc
 
-### 10. Documentation fragmentation risk
+### 10. Documentation — **Guide 01 executed; registry added**
 
-Truth is split across `AGENTS.md`, `BULK_DOWNLOAD_GUIDE.md`, `docs/pipeline-scheduling.md`, `docs/2026-07-08_pipeline_inventory_and_action_items.md`, and inline comments. **Dev Guide 01 must define a single canonical architecture doc** and demote others to "operator summary" + links — not add a fifth parallel source.
-
-`docs/2026-07-08_pipeline_inventory_and_action_items.md` is **stale on CDP** (checkpoint ~19:00; does not document per-connector lock scope, capture yield/defer, or prune incident). Update during Phase A, not during code refactors.
+- Canonical architecture: `docs/reference/*`, `PIPELINE_OPS.md`
+- **Issue registry:** `docs/known_issues_and_backlog.md` (2026-07-08)
+- Inventory/runtime docs updated per checkpoint; link to registry instead of duplicating tables
 
 ---
 
@@ -276,16 +277,10 @@ Scores are for **maintainability + confidence to change**, not "does it download
 | Area | Score (1–10) | Notes |
 |------|:------------:|-------|
 | **Core single-vehicle download (`src/`)** | **7** | Solid domain layout; `index.ts` getting heavy |
-| **Bulk orchestration (`bulk-download.sh` + friends)** | **4** | Works when supervised; fragile; untested |
-| **Param capture (`capture-params.ts`)** | **4** | Powerful but monolithic; CDP coupling painful |
-| **Queue / verify / reconcile libs** | **6** | Good ideas; need tests + schema |
-| **Documentation (ops)** | **7** | Reference + PIPELINE_OPS added; inventory may lag live pipeline |
-| **Documentation (dev/onboarding)** | **6** | Dev guides 01–06 exist; README upstream-centric |
-| **Test infrastructure** | **7** | Vitest + 44 tests; gaps, locks, patch-queue serialization, queue stale rank |
-| **Modularity / DRY** | **5** | TS/JS duplication; script sprawl |
-| **Simplicity** | **5** | Many scripts; overlapping launch paths |
-| **Extensibility (pre-2003, new vehicle types)** | **4** | Pre-2003 not automated; matchers ad hoc |
-| **Overall foundation readiness** | **7** | **Guide 02 executed; 33 unit tests; runtime ~6.5 until Guide 03–04** |
+| **Bulk orchestration** | **6** | Guide 04 split + tests; **RUN-01 stall** shows prune blocking gap |
+| **Param capture (`capture-params.ts`)** | **5** | Retry pass working; E-Transit PTS gap |
+| **Test infrastructure** | **7** | 68 Vitest tests + CI |
+| **Overall foundation readiness** | **7** | Guides 01–04 done; 05 ready; Phase G for ops hardening |
 
 **Summary:** The project is **good at accomplishing the mission under supervision** and **mediocre as a codebase you can evolve safely**. That gap is exactly what this initiative should close.
 
@@ -432,16 +427,14 @@ Per `meta_creating_dev_guides.md` — every dev guide must carry this; summarize
 
 ## Knowledge Status
 
-### Known (verified — pass 2)
+### Known (verified — 2026-07-08 pass 5)
 
-1. **75** tracked TS/JS/sh files; **8,788** lines; largest: `capture-params.ts` (883), `bulk-download.sh` (504)
-2. Zero formal automated tests; no CI workflows; no `yarn test`
-3. CDP lock contention is a primary stability bottleneck; per-connector lock + capture yield pushed 2026-07-08 (`a80eb6a`…`5cec128`)
-4. Path-resolve has explicit sync comment; capture-gaps has **parallel logic with verified drift** on `log-backfill` blocking rules
-5. Bulk requires Terminal.app supervision — `AGENTS.md`
-6. 25 commits on 2026-07-08; 82 total
-7. `pipeline-health.sh` already exists (Phase E should extend, not replace)
-8. Gitignored operator state: queue, manuals, params, cookies — tests must use fixtures
+1. **68** Vitest tests + CI on fork; Guides **01–04 executed**
+2. **Issue registry:** `docs/known_issues_and_backlog.md`
+3. **Bulk stall RUN-01:** orchestrator can hang when `prune-cdp-tabs` blocks `runOne`
+4. **Capture session:** 15 OK, 40 `needs_params` remaining, E-Transit not in PTS menu (RUN-06)
+5. Terminal.app supervision required — `AGENTS.md`
+6. Gitignored operator state — tests use fixtures
 
 ### Assumed (defaults for dev guides unless Tom overrides)
 

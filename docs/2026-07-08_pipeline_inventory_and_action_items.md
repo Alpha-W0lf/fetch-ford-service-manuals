@@ -5,7 +5,7 @@
 **Subscription window:** ~72 hours; prioritize tier-1 anchors and trucks/commercial  
 **Guidance applied:** `second_brain/docs/guides/best_practices_ai_native_engineering.md` (simplicity, guardrails, anti-bloat), `best_practices_pr_descriptions_git_workflow.md` (atomic commits, fork-only push), `prompt_work_session_standards.md` (inventory before more patches)
 
-**Related docs:** `AGENTS.md`, `docs/PIPELINE_OPS.md`, `docs/reference/architecture.md`, `BULK_DOWNLOAD_GUIDE.md`, `docs/pipeline-scheduling.md`, `docs/dev_guides/2026-07-08_dev_guide_01_architecture_reference.md`
+**Related docs:** `AGENTS.md`, `docs/PIPELINE_OPS.md`, `docs/reference/architecture.md`, `BULK_DOWNLOAD_GUIDE.md`, `docs/pipeline-scheduling.md`, [known_issues_and_backlog.md](./known_issues_and_backlog.md) (canonical issue registry)
 
 ---
 
@@ -27,17 +27,19 @@
 
 Check live: `./scripts/queue-status.sh --health`
 
-| Metric | Last known (2026-07-08 ~22:24) |
+| Metric | Last known (2026-07-08 ~22:48) |
 |--------|--------------------------------|
-| Orchestrator | **Running** pid **28011** (~70 min) |
-| Workers | **2** — `2016-f-250` (~1962 PDFs, connector), `2018-expedition-max` (~2167 PDFs, connector) |
-| Complete | **59** (unchanged ~45 min — both slots on long connector jobs) |
+| Orchestrator | **Running** pid **28011** (~95 min) — **⚠️ stalled** (0 yarn workers, 2 `downloading`) |
+| Workers | **0 active** — `2016-f-250` log frozen ~22:25; `2018-expedition-max` finished with 1 gap |
+| Complete | **59** |
 | Tier 1 | **35/38** |
-| Failed | **19** (stable since auth burst) |
-| needs_params | **47** |
-| Param capture | **7 OK**, **23 defer**, **3 FAIL**; PTS home `page.goto` timeouts under load |
+| Failed | **19** (stable) |
+| needs_params | **40** (−14 from session start 54) |
+| Param capture | **15 OK**, **32 defer** (retry pass), **4+ FAIL**; pid **29405** healthy |
 
-**Runtime notes:** [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md) — § Broken tabs, issue F (Chrome errors)
+**Issue registry:** [known_issues_and_backlog.md](./known_issues_and_backlog.md) — RUN-01 bulk stall, RUN-02 hung prunes
+
+**Runtime notes:** [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md)
 
 ### Restart procedure (2026-07-08 ~21:14)
 
@@ -49,15 +51,15 @@ Check live: `./scripts/queue-status.sh --health`
 ### Observations
 
 **Healthy:**
-- Bulk: `2004-f-150` → complete; `2018-f-550` connectors → complete; 2 workers actively downloading (`2016-f-250`, `2018-expedition-max`)
-- Capture: CDP lock held; 4 vehicles captured (`2009-flex`, `2009-navigator`, `2010-navigator`, `2010-fusion`); E-Transit deferred to retry pass (expected during connector job)
-- CDP coordination: defer/retry working as designed
+- Capture: **15 vehicles** params captured this session; on **CDP retry pass** (32 deferred); actively OK'ing (`2014-edge` latest)
+- CDP coordination: defer/retry working; capture holds CDP lock during retry pass
 
-**Watch:**
-- **Chrome error tabs** (connection reset / ERR_TIMED_OUT) — failed `page.goto` under PTS load; bulk connectors still progressing — see runtime observations § Broken tabs
-- **Capture PTS home timeouts** (`2009-crown-victoria`) while `connector-51173` holds CDP lock — refresh PTS if capture hits 5 consecutive fails
-- **~02:29 UTC auth burst:** 19 `failed` — stable; will retry
-- `2003-f-250` capture workshop miss — edge year
+**Watch / act:**
+- **Bulk stall (RUN-01):** Orchestrator alive but no `yarn start` workers; queue stuck `downloading` for `2016-f-250` / `2018-expedition-max` — likely hung `prune-cdp-tabs` blocking `runOne` completion — see [known_issues_and_backlog.md](./known_issues_and_backlog.md)
+- **Hung prune processes (RUN-02):** Multiple `prune-cdp-tabs.ts` PIDs; kill orphans or restart bulk
+- **E-Transit capture fails:** PTS menu lacks E-Transit for 2022/23 — not fixed by `modelMatchers` alone
+- **Chrome error tabs** — expected under PTS load
+- **19 `failed`** — stable; auto-retry when bulk dispatches again
 
 ---
 
@@ -69,12 +71,13 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 |---|------|-----|------------|------------------|-------------------|--------|
 | **P0** | **Never start bulk from Cursor terminal**; use `./scripts/start-bulk-in-terminal.sh` | Only proven stable supervisor path | Low | Bulk stops; lost download hours | None | ✅ Documented |
 | **P0** | Keep PTS Chrome open (`:9222`) + Mac plugged in | Connectors + cookie refresh | Low | Connector/auth failures | None | Ongoing |
-| **P0** | Run param capture in parallel (`./scripts/start-capture-in-terminal.sh`) in 2nd Terminal | 54 vehicles still blocked | Medium | Can't drain full queue | CDP contention (lock mitigates) | **Running** |
-| **P1** | **E-Transit `modelMatchers` fix** (`capture-params.ts`) | `2022/23/24-e-transit` fail: menu label mismatch | Low | 3 tier-1 vehicles blocked | Wrong alias if PTS label differs | **Fixed in code — restart capture to pick up** |
-| **P1** | **Pre-2003 automated capture** (not manual DevTools) | 3 vehicles now; fleet will grow | Medium | Pre-2003 stays blocked | Scope creep mid-sprint | **Backlog — defer during subscription** |
+| **P0** | Run param capture in parallel (`./scripts/start-capture-in-terminal.sh`) in 2nd Terminal | 40 vehicles still blocked | Medium | Can't drain full queue | CDP contention (lock mitigates) | **Running — 15 OK** |
+| **P0** | **Bulk stall recovery** — restart bulk if 0 workers + 2 `downloading` >10 min | RUN-01 — orchestrator blocked on prune | Low | Zero bulk throughput | Brief capture CDP contention | **Action needed** |
+| **P1** | **E-Transit capture** — PTS menu missing model for 2022/23 | Tier-1 blocked; matchers insufficient | Medium | 3 tier-1 vehicles | Wrong workaround | **Open — RUN-06** |
+| **P1** | **Pre-2003 automated capture** (not manual DevTools) | 3 vehicles now; fleet will grow | Medium | Pre-2003 stays blocked | Scope creep mid-sprint | **Backlog — Guide 06** |
 | **P1** | Prove or remove launchd watchdog | Experimental; TCC issues | Medium | No auto-restart overnight | Spurious Terminal tabs | Open |
-| **P1** | Foundation docs + dev guides | Maintainability; freeze contracts before tests | Low | Drift continues | None | **Guide 01 complete** — Guide 02 next |
-| **P1** | Split `bulk-download.sh` (~500 lines) | Maintainability | Medium | Harder debugging | Break running pipeline | **Done (Guide 04)** — soak pending |
+| **P1** | Foundation docs + dev guides | Maintainability | Low | Drift continues | None | **Guides 01–04 executed; 05 ready** |
+| **P1** | Split `bulk-download.sh` | Maintainability | Medium | Harder debugging | Break running pipeline | **Done (Guide 04)** |
 | **P1** | Retry `2011-f-450` gap-fill | Tier-1 incomplete | Low | Missing pages | Queue time | Auto when slot free |
 | **P1** | Commit/push frequently to **origin only** | Checkpoints | Low | Lost history | Accidental upstream push | Ongoing |
 | **P2** | Remove duplicate cookie refresh at worker start | Simpler starts | Low | Slower restarts | Auth edge case | **Defer until bulk stops** |
@@ -86,6 +89,8 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 ---
 
 ## Tech debt inventory
+
+**Canonical registry:** [known_issues_and_backlog.md](./known_issues_and_backlog.md)
 
 ### Fixed (pushed to origin)
 
@@ -104,16 +109,15 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 
 | Debt | Severity | Notes |
 |------|----------|-------|
+| **Bulk orchestrator stall (RUN-01)** | **High** | Hung prune blocks `runOne`; 0 workers, 2 `downloading` |
+| **Hung `prune-cdp-tabs` (RUN-02)** | High | Multiple orphan PIDs; CDP connect hang |
 | **No proven auto-supervisor** | High | Watchdog unverified; Terminal start is the real fix |
-| **504-line bash orchestrator** | Medium | Split after bulk run ends |
-| **Lock patterns** (bulk + CDP) | Low | Per-connector CDP lock + capture yield documented in `docs/reference/` |
-| **Duplicate `~/bin/ford-bulk-watchdog.sh`** | Low | Re-run install after `ensure-bulk-running.sh` changes |
-| **54 needs_params** | High (throughput) | Param capture running; restart after capture code changes |
-| **E-Transit naming** | Medium | `modelMatchers` + regex fallback in `capture-params.ts`; verify on next capture pass |
-| **Pre-2003 capture automation** | Medium | Must automate eventually (`pre_2003.alphabeticalIndexURL` branch); not manual — 3 vehicles deferred |
-| **PTS `subscriptionExpired` false alarm** | Medium | Stale session recovery in `ptsAuth.ts` + `recover-pts-chrome-session.js` (pushed `0fe1a35`) |
-| **`2011-f-450` incomplete** | Medium | 2054 PDFs; gaps remain |
-| **`2018-f-550` auth retry** | Watch | Circuit breaker tripped once; retry in progress |
+| **40 needs_params** | High (throughput) | Capture retry pass in progress (15 OK) |
+| **E-Transit PTS availability (RUN-06)** | Medium | Model absent from PTS menu — not matcher issue |
+| **Pre-2003 capture automation** | Medium | Guide 06 — 3 vehicles |
+| **`2011-f-450` incomplete** | Medium | Tier-1 gaps |
+| **capture-params monolith** | Medium | Guide 05 |
+| **Orchestrator observability** | Low | Heartbeat, pass summary — Phase G |
 
 ---
 
@@ -183,4 +187,4 @@ upstream → https://github.com/iamtheyammer/fetch-ford-service-manuals.git (fet
 | 2026-07-08 | Dev Guide 01 — `docs/reference/*`, `PIPELINE_OPS.md`, CDP docs aligned |
 | 2026-07-08 | Guide 04 executed; runtime observations; checkpoint ~22:07 |
 | 2026-07-08 | Guide 06 plan pass; `legacy_pts_capture.md` template |
-| 2026-07-08 | Checkpoint ~22:24 — Chrome error tabs doc; capture PTS timeouts |
+| 2026-07-08 | Checkpoint ~22:48 — known_issues registry; bulk stall RUN-01 |

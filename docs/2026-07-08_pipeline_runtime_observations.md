@@ -1,8 +1,8 @@
 # Pipeline runtime observations — 2026-07-08 evening session
 
-**Checkpoint time:** ~22:30 local (session ~75 min)  
-**Prior checkpoint:** ~22:24  
-**Related:** [2026-07-08_pipeline_inventory_and_action_items.md](./2026-07-08_pipeline_inventory_and_action_items.md), [pipeline-scheduling.md](./pipeline-scheduling.md), [reference/architecture.md](./reference/architecture.md)
+**Checkpoint time:** ~22:48 local  
+**Prior checkpoint:** ~22:30  
+**Issue registry:** [known_issues_and_backlog.md](./known_issues_and_backlog.md)
 
 ---
 
@@ -10,8 +10,8 @@
 
 | Pipeline | Running? | Progressing? | Verdict |
 |----------|----------|--------------|---------|
-| **Bulk** | Yes (pid 28011, ~75 min) | Yes — `2016-f-250` still saving connectors; `2018-expedition-max` finished with **1 connector gap** | **Healthy, slow** |
-| **Param capture** | Yes (pid 29405) | **7 OK**, **25 defer**, **3 FAIL**; first pass still deferring under CDP lock | **Stressed** — watch consecutive fails |
+| **Bulk** | Yes (pid 28011) | **⚠️ Stalled** — 0 yarn workers; 2 queue rows `downloading`; log frozen ~22:25 | **Needs restart** — RUN-01 |
+| **Param capture** | Yes (pid 29405) | **15 OK**, retry pass on 32 deferred; actively capturing | **Healthy** |
 
 **You are not mistaken** about low visible Chrome activity — that is **expected** for most bulk work. See [Why Chrome looks idle](#why-chrome-looks-idle) below.
 
@@ -136,15 +136,23 @@ See [pipeline-scheduling.md](./pipeline-scheduling.md) § Why Chrome may look id
 
 ---
 
-## Process / lock snapshot (~22:07)
+### G. Bulk orchestrator stall (~22:48) — **RUN-01**
+
+- **Symptoms:** `queue-status --health` shows orchestrator running, **yarn workers: 0**, but `2016-f-250` and `2018-expedition-max` still `downloading`
+- **Evidence:** Bulk log START without matching OK/FAIL/INCOMPLETE for current round; `2016-f-250.log` mtime frozen; multiple hung `prune-cdp-tabs.ts` child PIDs of orchestrator
+- **Likely cause:** `runOne` blocked on `pruneCdpTabs()` `spawnSync` while prune scripts hang on CDP connect; `inFlight` slots full → no new dispatches
+- **Action:** Kill hung prune PIDs; restart bulk via `./scripts/start-bulk-in-terminal.sh` (capture can continue)
+- **Future fix:** Phase G / Guide 04.1 — prune timeout, single-flight, dead-worker PID check
+
+---
+
+## Process / lock snapshot (~22:48)
 
 ```
-bulk-orchestrator.js     pid 28011   bulk-download.lock held
-caffeinate + bulk.sh     pid 28013
-capture-params --all     pid 29405   (first pass)
-yarn start × 2           2016-f-250 (51173), 2018-expedition-max (51762)
-cdp-chrome.lock          holder: connector-51173
-CDP :9222                up, 7 targets
+bulk-orchestrator.js     pid 28011   bulk-download.lock held — STALLED (0 workers)
+capture-params --all     pid 29405   CDP retry pass (32 deferred)
+cdp-chrome.lock          holder: capture-params
+prune-cdp-tabs.ts        4+ hung PIDs (RUN-02)
 ```
 
 ---

@@ -87,7 +87,7 @@ runOne
 | PID tracking? | **Yes** — `entry.pid`, `entry._resolveWorker`, `entry.reaped` | Unblock `spawnYarnStart` when stale; prevent double `markStatus` |
 | Delete `pruneCdpTabs` function? | **Yes** | Only caller is `runOne` (:398); not exported |
 | `spawnSync` elsewhere? | **Keep** | reconcile/preflight/cookies — startup/idle only |
-| `browser.close()` timeout in prune? | **Yes — in scope** (Step 4) | RUN-02 hung prunes 33min+; bounds worker/shutdown prune |
+| `browser.close()` timeout in prune? | **Yes — in scope** (Step 5) | RUN-02 hung prunes 33min+; bounds worker/shutdown prune |
 | New env flag for orchestrator prune? | **No** | Simplicity |
 
 ### Stale reap status mapping (critical — do not use `fixOrphanDownloading` with `exitCode=1` blindly)
@@ -237,13 +237,15 @@ module.exports = { isProcessAlive };
 
 ## Strangler order (mandatory)
 
-1. `lib/process-alive.js` + tests
-2. **Remove** `pruneCdpTabs` (immediate stall fix if deployed alone)
-3. `patchStaleWorkerFromDisk` + `reapStaleWorkers` + tests (red → green)
-4. PID tracking in `spawnYarnStart` + `reaped` guard
+1. **Remove** `pruneCdpTabs` (immediate RUN-01 stall fix — can hotfix alone)
+2. `lib/process-alive.js` + tests
+3. PID tracking in `spawnYarnStart` + `entry` shape in `startWorkers` + `reaped` guard in `runOne`
+4. `patchStaleWorkerFromDisk` + `reapStaleWorkers` + tests (red → green)
 5. Wire `reapStaleWorkers` into `orchestratorTick` + `waitForInFlight`
-6. Step 5 `cdpConnectorPage` disconnect timeout
+6. `cdpConnectorPage` disconnect timeout (RUN-02)
 7. Docs + operator soak
+
+**Note:** Checklist Step numbers differ (Step 1 = prune first); this strangler order matches **dependency order** after the prune hotfix.
 
 ---
 

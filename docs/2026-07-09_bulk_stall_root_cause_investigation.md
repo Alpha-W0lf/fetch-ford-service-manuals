@@ -221,28 +221,29 @@ STALL: orchestrator alive, zero throughput, queue wrong
 
 ---
 
-## Open questions for fix planning (not answered here)
+## Open questions (resolved — see Guide 04.1)
 
-1. Does `browser.close()` in `pruneOrphanCdpTabs` finally block without timeout when CDP is busy with capture?
-2. Should orchestrator prune at all, given workers already prune in `index.ts`?
-3. Should `spawnSync` be replaced with `spawn` + `Promise.race(timeout)`?
-4. Should `inFlight` track child PID and use `kill -0` / `process.kill` for dead detection?
-5. Should `reconcile-queue` run on a timer even when `inFlight` is non-empty but PIDs are dead?
+| # | Question | Resolution |
+|---|----------|------------|
+| 1 | Does `browser.close()` in `pruneOrphanCdpTabs` finally block without timeout when CDP is busy with capture? | **Likely yes** — Step 5 adds 10s `Promise.race` timeout in Guide 04.1 |
+| 2 | Should orchestrator prune at all? | **No** — remove from `runOne`; keep worker + shutdown prune |
+| 3 | Replace `spawnSync` prune with async + timeout? | **N/A** — delete orchestrator prune entirely |
+| 4 | Track child PID in `inFlight`? | **Yes** — `reapStaleWorkers` via `process.kill(pid, 0)` |
+| 5 | Reconcile while `inFlight` has dead PIDs? | **`reapStaleWorkers`** patches per-vehicle from disk; fleet reconcile stays idle-only |
 
 ---
 
-## Recommended fix themes (planning only — no implementation)
+## Recommended fix themes (implemented in Guide 04.1)
 
 | Theme | Rationale |
 |-------|-----------|
 | **Never `spawnSync` prune in hot path** | Unblocks event loop; enables true parallel worker completion |
-| **Orchestrator-level prune timeout** | Bounded recovery; log and continue on failure |
-| **Single-flight / dedupe prune** | Avoid CDP dogpile from worker + orchestrator + orphans |
 | **PID-aware `inFlight` + stale worker reap** | Self-heal when yarn dead but `done` false |
-| **Periodic queue reconcile for stale `downloading`** | Disk-truth fallback when orchestrator state diverges |
-| **Tests for stall scenario** | Mock hung `spawnSync`; assert tick recovers or marks failed |
+| **Disk-truth stale status** | Avoid marking `incomplete` as `failed` when exit code is ambiguous |
+| **Bounded CDP disconnect** | Prevent hung prune subprocess (RUN-02) |
+| **Tests for stall scenario** | Mock dead pid; assert no prune `spawnSync`; disk-truth patch |
 
-Candidate home: **Guide 04.1** — [2026-07-09_dev_guide_04_1_orchestrator_reliability.md](./dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md) (**implementation-ready**).
+**Implementation guide:** [2026-07-09_dev_guide_04_1_orchestrator_reliability.md](./dev_guides/2026-07-09_dev_guide_04_1_orchestrator_reliability.md) (**implementation-ready**, pass 3).
 
 ---
 

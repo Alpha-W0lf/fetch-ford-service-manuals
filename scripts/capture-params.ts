@@ -194,12 +194,14 @@ async function applyCookies(context: BrowserContext) {
   await context.addCookies(transformedCookies);
 }
 
-async function connectBrowser(useCdp: boolean): Promise<{ browser: Browser; closeOnDone: boolean }> {
+async function connectBrowser(
+  useCdp: boolean
+): Promise<{ browser: Browser; closeOnDone: boolean; connectedViaCdp: boolean }> {
   if (useCdp) {
     try {
       const browser = await chromium.connectOverCDP(CDP_URL);
       console.log(`Connected to Chrome via CDP (${CDP_URL})`);
-      return { browser, closeOnDone: false };
+      return { browser, closeOnDone: false, connectedViaCdp: true };
     } catch (err: any) {
       console.warn(`CDP connect failed: ${err?.message || err}`);
       console.warn("Start Chrome with: ./scripts/launch-pts-chrome.sh");
@@ -211,7 +213,7 @@ async function connectBrowser(useCdp: boolean): Promise<{ browser: Browser; clos
     headless: process.env.HEADLESS_BROWSER !== "false",
     args: ["--disable-web-security", "--disable-http2", "--http1.1"],
   });
-  return { browser, closeOnDone: true };
+  return { browser, closeOnDone: true, connectedViaCdp: false };
 }
 
 async function getBrowserContext(browser: Browser, useCdp: boolean): Promise<BrowserContext> {
@@ -653,8 +655,14 @@ async function main() {
 
   const lockHolder = "capture-params";
   const lockWaitMs = parseInt(process.env.CDP_LOCK_WAIT_MS || "600000", 10);
-  const { browser, closeOnDone } = await connectBrowser(useCdp);
-  const context = await getBrowserContext(browser, useCdp && browser.contexts().length > 0);
+  const { browser, closeOnDone, connectedViaCdp } = await connectBrowser(useCdp);
+  const effectiveCdp = useCdp && connectedViaCdp;
+  if (useCdp && !connectedViaCdp) {
+    console.warn(
+      "WARN: CDP unavailable — param capture in headless mode is unreliable; restart when PTS Chrome is free."
+    );
+  }
+  const context = await getBrowserContext(browser, effectiveCdp && browser.contexts().length > 0);
   const page = await getPtsPage(context);
 
   if (page.url().includes("login.microsoftonline") || page.url().includes("subscriptionExpired")) {
@@ -666,10 +674,14 @@ async function main() {
     );
   }
 
-  const firstPass = await runCaptureSession(
-    targets,
-    { page, context, useCdp, lockHolder, lockWaitMs: CDP_LOCK_YIELD_MS, deferOnLockBusy: true }
-  );
+  const firstPass = await runCaptureSession(targets, {
+    page,
+    context,
+    useCdp: effectiveCdp,
+    lockHolder,
+    lockWaitMs: CDP_LOCK_YIELD_MS,
+    deferOnLockBusy: true,
+  });
 
   if (firstPass.deferred.length > 0) {
     console.log(
@@ -678,7 +690,7 @@ async function main() {
     const retry = await runCaptureSession(firstPass.deferred, {
       page,
       context,
-      useCdp,
+      useCdp: effectiveCdp,
       lockHolder,
       lockWaitMs,
       deferOnLockBusy: false,

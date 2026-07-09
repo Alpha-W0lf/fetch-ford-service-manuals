@@ -4,6 +4,8 @@ import { chromium, Browser, BrowserContext, Page } from "playwright";
 const cdpLock = require("../scripts/cdp-chrome-lock") as {
   acquire: (holder: string, maxWaitMs?: number) => boolean;
   release: (holder?: string) => void;
+  lockInfo: () => { holder: string; pid: string } | null;
+  isLocked: () => boolean;
 };
 
 const CDP_URL = process.env.CDP_URL || "http://127.0.0.1:9222";
@@ -192,17 +194,44 @@ export async function pruneOrphanCdpTabs(
 
   let cdpBrowser: Browser | null = null;
   try {
-    cdpBrowser = await chromium.connectOverCDP(CDP_URL);
+    cdpBrowser = await chromium.connectOverCDP(CDP_URL, {
+      timeout: parseInt(process.env.CDP_CONNECT_TIMEOUT_MS || "30000", 10),
+    });
     const contexts = cdpBrowser.contexts();
     if (contexts.length === 0) {
       return { closed: 0, remainingConnectorTabs: 0 };
     }
 
     const pages = contexts[0].pages();
-    const connectorTabs = pages.filter((p) => isConnectorCaptureTab(p.url()));
-    const disposable = pages.filter((p) => isDisposableTab(p.url()));
+    const lock = cdpLock.lockInfo();
+    const connectorJobActive =
+      cdpLock.isLocked() && (lock?.holder || "").startsWith("connector-");
 
     let closed = 0;
+
+    // While a connector job holds the CDP lock, only remove dead/error tabs —
+    // never close /wiring/face tabs the worker may be using.
+    if (connectorJobActive) {
+      for (const page of pages) {
+        const url = page.url();
+        if (url === "about:blank" || isChromeErrorTab(url)) {
+          await page.close().catch(() => undefined);
+          closed += 1;
+        }
+      }
+      const remaining = contexts[0]
+        .pages()
+        .filter((p) => isConnectorCaptureTab(p.url())).length;
+      if (closed > 0) {
+        console.log(
+          `Pruned ${closed} safe orphan tab(s) during active connector job (${lock?.holder}); ${remaining} connector tab(s) kept`
+        );
+      }
+      return { closed, remainingConnectorTabs: remaining };
+    }
+
+    const connectorTabs = pages.filter((p) => isConnectorCaptureTab(p.url()));
+    const disposable = pages.filter((p) => isDisposableTab(p.url()));
     const connectorOverflow = connectorTabs.length - maxConnectorTabs;
     if (connectorOverflow > 0) {
       for (const page of connectorTabs.slice(0, connectorOverflow)) {

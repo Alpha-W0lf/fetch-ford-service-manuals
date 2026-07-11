@@ -138,7 +138,7 @@ Stop **parallel-slot waste** when `incomplete` vehicles fast-fail on auth (`subs
 ### Step 4: Cooldown state module
 
 * [x] New `lib/vehicle-cooldown.js` exports `createVehicleCooldownStore(file)` and owns all JSON parsing, atomic rewrite, expiry pruning, and state-machine transitions.
-* [x] In `loadConfig`, add the four cooldown values and the two runtime file paths. In `runOrchestrator`, construct one store and retain it on `state`; use `(Date.now() - entry.startedAt) / 1000` after `spawnYarnStart()` resolves for `runtimeSec`.
+* [x] In `loadConfig`, add the four cooldown values and the two runtime file paths. In `runOrchestrator`, construct one store and retain it on `state`; use `(Date.now() - yarnStartedAt) / 1000` after `spawnYarnStart()` resolves for `runtimeSec` (`yarnStartedAt` is set immediately before spawn — excludes cookie-refresh time).
 * [x] Persist to `logs/vehicle-cooldown.json` using the same atomic-write pattern as other orchestrator state files (write temp + rename)
 * [x] Do not count reaped/hung workers as fast failures; Guide 04.2 remains the owner of those outcomes
 * [x] In `orchestratorTick`, prune expired cooldowns before its existing circuit-breaker check; in `startWorkers`, merge `isExcluded()` ids into the existing `excludeIds` immediately before its `nextJob` call

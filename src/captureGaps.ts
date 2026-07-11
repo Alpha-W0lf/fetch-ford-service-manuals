@@ -187,3 +187,7 @@ export function gapReasonFromError(error: unknown): string {
   if (/browser has been closed/i.test(msg)) return "browser-closed";
   return "error";
 }
+
+export function isAuthClassGapReason(reason: string): boolean {
+  return reason === "auth" || reason === "subscription-expired";
+}

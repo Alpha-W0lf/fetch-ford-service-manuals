@@ -134,61 +134,61 @@ function isAuthClassGapReason(reason: string): boolean {
 
 ### Step 0: Prerequisite verification
 
-* [ ] Guide 04.3 is committed; `lib/vehicle-cooldown.js` exists and tests pass.
-* [ ] `yarn test` and `yarn typecheck` green before starting 04.4.
+* [x] Guide 04.3 is committed; `lib/vehicle-cooldown.js` exists and tests pass.
+* [x] `yarn test` and `yarn typecheck` green before starting 04.4.
 
 ### Step 1: Tests first
 
-* [ ] Add `test/workshop-auth-budget.test.ts`: mock auth failures increment streak; `subscription-expired` counts toward stop; recursive nested TOC respects `authBudgetStopRequested`; stop at threshold; `[auth-budget-stop]` logged; gaps persisted; no throw.
-* [ ] Add `test/tree-and-cover-auth-gap.test.ts`: mocked `fetchTreeAndCover` 403 → `workshop:tree-and-cover` gap recorded; `modernWorkshop` returns without throw.
-* [ ] Add `test/wiring-toc-auth-gap.test.ts`: mocked `fetchTableOfContents` 403 → `wiring-page:toc:<book>` gap; no `process.exit(1)`.
-* [ ] Add `test/workshop-log-redaction.test.ts`: workshop catch path uses `logHttpError`; no `Cookie` in stdout.
-* [ ] Extend `test/bulk-orchestrator.test.ts`: exit-0 worker with auth gaps + `[auth-budget-stop]` in log → cooldown increments **without** sub-60s runtime.
-* [ ] Extend `test/vehicle-cooldown.test.ts`: `recordOutcome({ authBudgetStop: true })` bypasses fast-fail runtime check.
-* [ ] Run affected tests to establish expected failing behavior.
+* [x] Add `test/workshop-auth-budget.test.ts`: mock auth failures increment streak; `subscription-expired` counts toward stop; recursive nested TOC respects `authBudgetStopRequested`; stop at threshold; `[auth-budget-stop]` logged; gaps persisted; no throw.
+* [x] Add `test/tree-and-cover-auth-gap.test.ts`: mocked `fetchTreeAndCover` 403 → `workshop:tree-and-cover` gap recorded; `modernWorkshop` returns without throw.
+* [x] Add `test/wiring-toc-auth-gap.test.ts`: mocked `fetchTableOfContents` 403 → `wiring-page:toc:<book>` gap; no `process.exit(1)`.
+* [x] Add `test/workshop-log-redaction.test.ts`: workshop catch path uses `logHttpError`; no `Cookie` in stdout.
+* [x] Extend `test/bulk-orchestrator.test.ts`: exit-0 worker with auth gaps + `[auth-budget-stop]` in log → cooldown increments **without** sub-60s runtime.
+* [x] Extend `test/vehicle-cooldown.test.ts`: `recordOutcome({ authBudgetStop: true })` bypasses fast-fail runtime check.
+* [x] Run affected tests to establish expected failing behavior.
 
 ### Step 2: Workshop auth-budget stop
 
-* [ ] Add a local `isAuthClassReason(reason)` accepting `auth` and `subscription-expired` only (match 04.3 orchestrator predicate).
-* [ ] In `saveEntireManual.ts`, add `WORKSHOP_AUTH_STOP_THRESHOLD` (default 10, must be > `AUTH_REFRESH_THRESHOLD`).
-* [ ] Extend `SaveOptions` with `authBudgetStopRequested?: boolean`. Set it when the budget is exceeded.
-* [ ] Refactor streak tracking: count **auth-class** failures (`auth` + `subscription-expired`), not `reason === "auth"` only. Keep `maybeRefreshCookiesOnAuthStreak` refresh at the existing threshold but ensure `subscription-expired` increments the same streak used for stop.
-* [ ] After each auth-class gap record, if streak ≥ stop threshold: `console.log('[auth-budget-stop] …')`, set `options.authBudgetStopRequested = true`, `break` from the current loop.
-* [ ] **Recursive calls:** `saveEntireManual` is recursive for nested TOC folders (`saveEntireManual.ts` ~202–208). After each recursive call, if `options.authBudgetStopRequested`, break the parent loop too. At the top of each loop iteration, skip work when the flag is already set.
-* [ ] Do **not** throw `PtsAuthError` for budget stop — return normally so `index.ts` exits 0.
-* [ ] Non-auth reasons reset streak (existing behavior for non-auth in refresh helper).
+* [x] Add a local `isAuthClassReason(reason)` accepting `auth` and `subscription-expired` only (match 04.3 orchestrator predicate).
+* [x] In `saveEntireManual.ts`, add `WORKSHOP_AUTH_STOP_THRESHOLD` (default 10, must be > `AUTH_REFRESH_THRESHOLD`).
+* [x] Extend `SaveOptions` with `authBudgetStopRequested?: boolean`. Set it when the budget is exceeded.
+* [x] Refactor streak tracking: count **auth-class** failures (`auth` + `subscription-expired`), not `reason === "auth"` only. Keep `maybeRefreshCookiesOnAuthStreak` refresh at the existing threshold but ensure `subscription-expired` increments the same streak used for stop.
+* [x] After each auth-class gap record, if streak ≥ stop threshold: `console.log('[auth-budget-stop] …')`, set `options.authBudgetStopRequested = true`, `break` from the current loop.
+* [x] **Recursive calls:** `saveEntireManual` is recursive for nested TOC folders (`saveEntireManual.ts` ~202–208). After each recursive call, if `options.authBudgetStopRequested`, break the parent loop too. At the top of each loop iteration, skip work when the flag is already set.
+* [x] Do **not** throw `PtsAuthError` for budget stop — return normally so `index.ts` exits 0.
+* [x] Non-auth reasons reset streak (existing behavior for non-auth in refresh helper).
 
 **Edge case (MVP — accepted):** After workshop budget stop, `index.ts` may still run the wiring phase. This is intentional: partial vehicles often have `Wiring/toc.json` and may complete connectors while workshop auth is dead. Do not skip wiring in 04.4 unless a later repro proves it causes harm.
 
 ### Step 3: TreeAndCover early failure gap
 
-* [ ] In `modernWorkshop` (`src/index.ts`), wrap `fetchTreeAndCover` in try/catch when toc/cover do not exist.
-* [ ] On auth-class error: `logHttpError`, record `workshopGapId("tree-and-cover")` with `expectedFile: "toc.json"`, return early (skip `saveEntireManual`).
-* [ ] Non-auth errors: rethrow (preserve existing fail behavior).
+* [x] In `modernWorkshop` (`src/jobHelpers.ts`), wrap `fetchTreeAndCover` in try/catch when toc/cover do not exist.
+* [x] On auth-class error: `logHttpError`, record `workshopGapId("tree-and-cover")` with `expectedFile: "toc.json"`, return early (skip `saveEntireManual`).
+* [x] Non-auth errors: rethrow (preserve existing fail behavior).
 
 ### Step 4: Wiring-TOC early failure gap
 
-* [ ] In `src/index.ts` wiring section, wrap `fetchTableOfContents` in try/catch when `Wiring/toc.json` absent.
-* [ ] On auth-class error: `logHttpError`, record `wiringPageGapId("toc", wiringParams.book)` with `expectedFile: "Wiring/toc.json"`, skip `saveEntireWiring` for full TOC fetch (connectors-only path unchanged).
-* [ ] Allow `run()` to complete → exit 0 with blocking gaps.
+* [x] In `src/jobHelpers.ts` / `src/index.ts` wiring section, wrap `fetchTableOfContents` via `resolveWiringTableOfContents` when `Wiring/toc.json` absent.
+* [x] On auth-class error: `logHttpError`, record `wiringPageGapId("toc", wiringParams.book)` with `expectedFile: "Wiring/toc.json"`, skip `saveEntireWiring` for full TOC fetch (connectors-only path unchanged).
+* [x] Allow `run()` to complete → exit 0 with blocking gaps.
 
 ### Step 5: SEC-01 log redaction
 
-* [ ] Replace raw `console.error(..., e)` in `saveEntireManual.ts` catch paths (document loop **and** direct-PDF URL loop) with `logHttpError(e, context)`.
-* [ ] Store `error: e instanceof Error ? e.message : String(e)` in `captureGaps.record()` — never serialize full Axios error.
+* [x] Replace raw `console.error(..., e)` in `saveEntireManual.ts` catch paths (document loop **and** direct-PDF URL loop) with `logHttpError(e, context)`.
+* [x] Store `error: e instanceof Error ? e.message : String(e)` in `captureGaps.record()` — never serialize full Axios error.
 
 ### Step 6: Extend 04.3 cooldown for auth-budget-stop
 
-* [ ] `recordOutcome` in `lib/vehicle-cooldown.js` already accepts `authBudgetStop` (forward-compatible API from 04.3); verify behavior unchanged.
-* [ ] In `runOne`, detect `[auth-budget-stop]` in vehicle log (after gap-reason classification) and pass `authBudgetStop: true` to `recordOutcome`.
-* [ ] Do not add FAIL-path cooldown — only exit-0 incomplete outcomes.
+* [x] `recordOutcome` in `lib/vehicle-cooldown.js` already accepts `authBudgetStop` (forward-compatible API from 04.3); verify behavior unchanged.
+* [x] In `runOne`, detect `[auth-budget-stop]` in vehicle log (after gap-reason classification) and pass `authBudgetStop: true` to `recordOutcome`.
+* [x] Do not add FAIL-path cooldown — only exit-0 incomplete outcomes.
 
 ### Step 7: Complete tests and docs
 
-* [ ] All Step 1 tests green; no 04.2 / 04.3 regression.
-* [ ] `docs/reference/env_vars.md` — new stop threshold vars
-* [ ] `known_issues_and_backlog.md` — SEC-01 mitigated; add 04.4 executed note when done
-* [ ] `architecture.md` — auth-budget-stop paragraph
+* [x] All Step 1 tests green; no 04.2 / 04.3 regression.
+* [x] `docs/reference/env_vars.md` — new stop threshold vars
+* [x] `known_issues_and_backlog.md` — SEC-01 mitigated; add 04.4 executed note when done
+* [x] `architecture.md` — auth-budget-stop paragraph
 
 ---
 
@@ -196,12 +196,12 @@ function isAuthClassGapReason(reason: string): boolean {
 
 ### Mock / unit verification (subscription lapsed OK)
 
-* [ ] Auth-budget stop fires at threshold; gaps persisted; worker would exit 0
-* [ ] TreeAndCover 403 produces `workshop:tree-and-cover` gap; no uncaught throw
-* [ ] Wiring TOC 403 produces `wiring-page:toc:<book>` gap; no exit 1
-* [ ] Cooldown increments on `[auth-budget-stop]` incomplete without 60s runtime
-* [ ] Workshop logs contain no cookie strings in redaction test
-* [ ] `yarn test` and `yarn typecheck` green
+* [x] Auth-budget stop fires at threshold; gaps persisted; worker would exit 0
+* [x] TreeAndCover 403 produces `workshop:tree-and-cover` gap; no uncaught throw
+* [x] Wiring TOC 403 produces `wiring-page:toc:<book>` gap; no exit 1
+* [x] Cooldown increments on `[auth-budget-stop]` incomplete without 60s runtime
+* [x] Workshop logs contain no cookie strings in redaction test
+* [x] `yarn test` and `yarn typecheck` green
 
 ### Live verification (defer until subscription renewed)
 

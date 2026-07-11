@@ -1,8 +1,5 @@
 import { writeFile, readFile, mkdir } from "fs/promises";
 import { fileExistsNonEmpty } from "./utils";
-import fetchTreeAndCover, {
-  FetchTreeAndCoverParams,
-} from "./workshop/fetchTreeAndCover";
 import fetchTableOfContents, {
   WiringFetchParams,
 } from "./wiring/fetchTableOfContents";
@@ -27,6 +24,10 @@ import {
 import { probeConnectorAccess, PtsAuthError } from "./ptsAuth";
 import { getConnectorProbeUrl } from "./connectorProbeUrl";
 import { pruneOrphanCdpTabs } from "./cdpConnectorPage";
+import {
+  modernWorkshop,
+  resolveWiringTableOfContents,
+} from "./jobHelpers";
 
 async function run({
   configPath,
@@ -251,22 +252,31 @@ async function run({
       process.exit(1);
     } else {
       console.log("Fetching wiring table of contents...");
-      wiringToC = await fetchTableOfContents(wiringParams);
+      wiringToC = await resolveWiringTableOfContents(
+        wiringParams,
+        captureGaps
+      );
     }
 
-    await saveEntireWiring(
-      outputPath,
-      config.workshop,
-      wiringParams,
-      wiringToC,
-      wiringPage,
-      restArgs.ignoreSaveErrors,
-      captureGaps,
-      {
-        connectorsOnly,
-        refreshCookies: refreshSessionCookies,
-      }
-    );
+    if (wiringToC) {
+      await saveEntireWiring(
+        outputPath,
+        config.workshop,
+        wiringParams,
+        wiringToC,
+        wiringPage,
+        restArgs.ignoreSaveErrors,
+        captureGaps,
+        {
+          connectorsOnly,
+          refreshCookies: refreshSessionCookies,
+        }
+      );
+    } else if (!connectorsOnly) {
+      console.log(
+        "Skipping wiring download — TOC unavailable (see capture-gaps.json)"
+      );
+    }
     await pruneOrphanCdpTabs().catch(() => undefined);
   } else {
     console.log("Skipping wiring manual download.");
@@ -291,47 +301,6 @@ async function run({
   } else {
     console.log("Capture complete: no gaps recorded");
   }
-}
-
-async function modernWorkshop(
-  config: Config,
-  outputPath: string,
-  browserPage: Page,
-  saveOptions: SaveOptions
-) {
-  const tocPath = join(outputPath, "toc.json");
-  const coverHtmlPath = join(outputPath, "cover.html");
-  const workshopConfig = config.workshop as FetchTreeAndCoverParams;
-  const tocFetchParams: FetchTreeAndCoverParams = {
-    ...workshopConfig,
-    CategoryDescription:
-      workshopConfig.CategoryDescription ?? "GSIXML",
-    category: workshopConfig.category ?? "33",
-  };
-
-  let tableOfContents: any;
-  if (
-    (await fileExistsNonEmpty(tocPath)) &&
-    (await fileExistsNonEmpty(coverHtmlPath))
-  ) {
-    console.log("Resuming workshop — using existing toc.json and cover.html");
-    tableOfContents = JSON.parse(await readFile(tocPath, { encoding: "utf-8" }));
-  } else {
-    console.log("Downloading and processing table of contents...");
-    const fetched = await fetchTreeAndCover(tocFetchParams);
-    tableOfContents = fetched.tableOfContents;
-    await writeFile(tocPath, JSON.stringify(tableOfContents, null, 2));
-    await writeFile(coverHtmlPath, fetched.pageHTML);
-  }
-
-  console.log("Saving manual files...");
-  await saveEntireManual(
-    outputPath,
-    tableOfContents,
-    config.workshop,
-    browserPage,
-    saveOptions
-  );
 }
 
 async function pre2003Workshop(
@@ -370,14 +339,16 @@ async function pre2003Workshop(
   );
 }
 
-const args = processCLIArgs();
-run(args)
-  .then(() => process.exit(0))
-  .catch((err) => {
-    if (err instanceof PtsAuthError) {
-      console.error(`PTS auth failure: ${err.message}`);
-      process.exit(2);
-    }
-    logHttpError(err, "Download failed");
-    process.exit(1);
-  });
+if (require.main === module) {
+  const args = processCLIArgs();
+  run(args)
+    .then(() => process.exit(0))
+    .catch((err) => {
+      if (err instanceof PtsAuthError) {
+        console.error(`PTS auth failure: ${err.message}`);
+        process.exit(2);
+      }
+      logHttpError(err, "Download failed");
+      process.exit(1);
+    });
+}

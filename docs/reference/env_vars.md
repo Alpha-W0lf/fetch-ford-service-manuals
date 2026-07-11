@@ -94,7 +94,9 @@ Implementation: `lib/bulk-orchestrator-lib.js`, `lib/bulk-circuit-breaker.js`, `
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `WORKSHOP_AUTH_REFRESH_THRESHOLD` | `5` | Re-auth workshop client after N failures |
+| `WORKSHOP_AUTH_REFRESH_THRESHOLD` | `5` | Re-auth workshop client after N consecutive auth-class failures (one cookie refresh per run) |
+| `WORKSHOP_AUTH_STOP_THRESHOLD` | `10` | Consecutive auth-class failures before in-worker workshop stop (`[auth-budget-stop]`); must be **>** refresh threshold |
+| `WORKSHOP_AUTH_STOP_ENABLED` | `1` | Set `0` to disable workshop auth-budget stop (rollback without code revert) |
 | `PDF_AUDIT_MIN_BYTES` | `200` | Minimum PDF size in integrity audit |
 | `USE_PROXY` | off | Proxy for HTTP client |
 | `CONNECTOR_PROBE_VEHICLE` | — | Debug probe vehicle id |

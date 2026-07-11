@@ -8,9 +8,11 @@ import saveStream, { fileExistsNonEmpty, sanitizeName } from "../utils";
 import { fileExistsAtRelPath, resolveExistingSubdir } from "../pathResolve";
 import CaptureGaps, {
   gapReasonFromError,
+  isAuthClassGapReason,
   workshopGapId,
 } from "../captureGaps";
 import { renderWorkshopPageToPdf } from "../renderHtmlToPdf";
+import { logHttpError } from "../logHttpError";
 
 export type SaveOptions = Pick<CLIArgs, "saveHTML" | "ignoreSaveErrors"> & {
   outputRoot: string;
@@ -18,24 +20,40 @@ export type SaveOptions = Pick<CLIArgs, "saveHTML" | "ignoreSaveErrors"> & {
   refreshCookies?: () => Promise<void>;
   /** @internal consecutive auth-class failures (403, etc.) this run */
   authFailureStreak?: number;
+  /** Set when workshop auth-budget stop fires; propagates through recursive TOC calls */
+  authBudgetStopRequested?: boolean;
 };
 
-const AUTH_REFRESH_THRESHOLD = parseInt(
-  process.env.WORKSHOP_AUTH_REFRESH_THRESHOLD || "5",
-  10
-);
+const AUTH_REFRESH_THRESHOLD = () => {
+  const n = parseInt(process.env.WORKSHOP_AUTH_REFRESH_THRESHOLD || "5", 10);
+  return Number.isFinite(n) && n > 0 ? n : 5;
+};
+const AUTH_STOP_THRESHOLD = () => {
+  const n = parseInt(process.env.WORKSHOP_AUTH_STOP_THRESHOLD || "10", 10);
+  const fallback = 10;
+  const parsed = Number.isFinite(n) && n > 0 ? n : fallback;
+  // Guide 04.4: stop must exceed refresh so cookie refresh can fire first.
+  return Math.max(parsed, AUTH_REFRESH_THRESHOLD() + 1);
+};
+const AUTH_STOP_ENABLED = () => process.env.WORKSHOP_AUTH_STOP_ENABLED !== "0";
 
-async function maybeRefreshCookiesOnAuthStreak(
+/**
+ * Track auth-class streak, optionally refresh cookies once per run, and request
+ * budget stop when threshold exceeded. Returns true when capture should stop.
+ */
+async function handleAuthClassFailure(
   options: SaveOptions,
   reason: string
-): Promise<void> {
-  if (reason !== "auth") {
+): Promise<boolean> {
+  if (!isAuthClassGapReason(reason)) {
     options.authFailureStreak = 0;
-    return;
+    return false;
   }
+
   options.authFailureStreak = (options.authFailureStreak || 0) + 1;
+
   if (
-    options.authFailureStreak >= AUTH_REFRESH_THRESHOLD &&
+    options.authFailureStreak >= AUTH_REFRESH_THRESHOLD() &&
     options.refreshCookies
   ) {
     console.log(
@@ -43,7 +61,21 @@ async function maybeRefreshCookiesOnAuthStreak(
     );
     await options.refreshCookies();
     options.authFailureStreak = 0;
+    return false;
   }
+
+  if (
+    AUTH_STOP_ENABLED() &&
+    options.authFailureStreak >= AUTH_STOP_THRESHOLD()
+  ) {
+    console.log(
+      `[auth-budget-stop] ${options.authFailureStreak} consecutive auth-class failures — stopping workshop capture`
+    );
+    options.authBudgetStopRequested = true;
+    return true;
+  }
+
+  return false;
 }
 
 function relFromRoot(outputRoot: string, absolutePath: string): string {
@@ -60,6 +92,8 @@ export default async function saveEntireManual(
   const exploded = Object.entries(toc);
 
   for (let i = 0; i < exploded.length; i++) {
+    if (options.authBudgetStopRequested) break;
+
     const [name, docID] = exploded[i];
 
     if (typeof docID === "string" && docID.length > 0) {
@@ -88,10 +122,9 @@ export default async function saveEntireManual(
           await options.captureGaps?.resolve(gapId);
           options.authFailureStreak = 0;
         } catch (e) {
-          console.error(`Error saving file ${name} with url ${docID}: ${e}`);
           if (options.ignoreSaveErrors && options.captureGaps) {
             const reason = gapReasonFromError(e);
-            await maybeRefreshCookiesOnAuthStreak(options, reason);
+            logHttpError(e, `Error saving file ${name} with url ${docID}`);
             await options.captureGaps.record({
               id: gapId,
               section: "workshop",
@@ -99,9 +132,12 @@ export default async function saveEntireManual(
               docId: docID,
               relativePath: relFromRoot(options.outputRoot, filePath),
               expectedFile: relFromRoot(options.outputRoot, filePath),
-              reason: gapReasonFromError(e),
-              error: String(e),
+              reason,
+              error: e instanceof Error ? e.message : String(e),
             });
+            if (await handleAuthClassFailure(options, reason)) break;
+          } else {
+            logHttpError(e, `Error saving file ${name} with url ${docID}`);
           }
         }
         continue;
@@ -161,13 +197,12 @@ export default async function saveEntireManual(
         options.authFailureStreak = 0;
       } catch (e) {
         if (options.ignoreSaveErrors) {
-          console.error(
-            `Continuing to download after error with ${name} (docID ${docID}):`,
-            e
+          logHttpError(
+            e,
+            `Continuing to download after error with ${name} (docID ${docID})`
           );
           if (options.captureGaps) {
             const reason = gapReasonFromError(e);
-            await maybeRefreshCookiesOnAuthStreak(options, reason);
             await options.captureGaps.record({
               id: gapId,
               section: "workshop",
@@ -175,12 +210,14 @@ export default async function saveEntireManual(
               docId: docID,
               relativePath: relFromRoot(options.outputRoot, pdfPath),
               expectedFile: relFromRoot(options.outputRoot, pdfPath),
-              reason: gapReasonFromError(e),
+              reason,
               error: e instanceof Error ? e.message : String(e),
             });
+            if (await handleAuthClassFailure(options, reason)) break;
           }
         } else {
-          console.error(
+          logHttpError(
+            e,
             `Encountered an error downloading ${name} (docID ${docID})`
           );
           throw e;
@@ -206,6 +243,7 @@ export default async function saveEntireManual(
         browserPage,
         options
       );
+      if (options.authBudgetStopRequested) break;
     }
   }
 }

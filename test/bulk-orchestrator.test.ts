@@ -1009,4 +1009,93 @@ describe("bulk-orchestrator-lib", () => {
     expect(ok).toBe(true);
     expect(store.isExcluded("storm-v")).toBe(false);
   });
+
+  it("runOne auth-budget-stop incomplete cools down when runtime exceeds fast-fail", async () => {
+    const root = mkRoot();
+    const outputDir = "manuals/auth-budget-stop";
+    const paramsRel = "vehicles/auth-budget/params.json";
+    fs.mkdirSync(path.dirname(path.join(root, paramsRel)), { recursive: true });
+    fs.writeFileSync(path.join(root, paramsRel), "{}");
+    mkAuthIncompleteManual(root, outputDir);
+    const queuePath = writeQueue(root, [
+      {
+        id: "auth-budget-v",
+        paramsFile: paramsRel,
+        outputDir,
+        status: "pending",
+      },
+    ]);
+    const config = baseConfig(root, queuePath);
+    const logLines: string[] = [];
+    const store = createVehicleCooldownStore(config.vehicleCooldownFile, {
+      fastFailSec: 60,
+      fastFailCount: 1,
+      cooldownSec: 900,
+    });
+    const state = { lastCookieRefresh: 0, vehicleCooldown: store };
+    const entry = {
+      vid: "auth-budget-v",
+      done: false,
+      exitCode: null,
+      pid: null,
+      reaped: false,
+      startedAt: Date.now(),
+      logPath: path.join(root, "logs/auth-budget-v.log"),
+      _resolveWorker: null as ((code: number) => void) | null,
+    };
+
+    const yarnStartMs = 1_000_000;
+    let nowMs = yarnStartMs;
+    const dateSpy = vi.spyOn(Date, "now").mockImplementation(() => nowMs);
+
+    const deps = {
+      log: (...args: unknown[]) => logLines.push(args.join(" ")),
+      nowSec: () => Math.floor(Date.now() / 1000),
+      fetch: async () => ({ ok: false }),
+      spawnSync: (cmd: string) => {
+        if (cmd === "bash") return { status: 0 };
+        return { status: 0, stdout: "", stderr: "" };
+      },
+      spawn: (cmd: string) => {
+        if (cmd !== "yarn") {
+          return { pid: 1, stdout: { pipe: () => {} }, stderr: { pipe: () => {} }, on: () => {} };
+        }
+        const child = new EventEmitter() as EventEmitter & {
+          stdout: PassThrough;
+          stderr: PassThrough;
+          pid: number;
+        };
+        child.stdout = new PassThrough();
+        child.stderr = new PassThrough();
+        child.pid = 1002;
+        setImmediate(() => {
+          nowMs = yarnStartMs + 120_000;
+          child.stdout.write(
+            "HTTP 403 Access Denied\n[auth-budget-stop] stopping workshop capture\n"
+          );
+          child.emit("close", 0);
+        });
+        return child as never;
+      },
+      sleep: async () => {},
+    };
+
+    const code = await runOne(
+      config,
+      {
+        v: { id: "auth-budget-v", paramsFile: paramsRel, outputDir },
+        workshop: true,
+        wiring: true,
+        stale: false,
+      },
+      deps as never,
+      state as never,
+      entry as never
+    );
+
+    expect(code).toBe(1);
+    expect(store.isExcluded("auth-budget-v", yarnStartMs + 120_000)).toBe(true);
+    expect(logLines.some((l) => l.includes("[auth-incomplete]"))).toBe(true);
+    dateSpy.mockRestore();
+  });
 });

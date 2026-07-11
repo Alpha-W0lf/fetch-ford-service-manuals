@@ -15,6 +15,7 @@ import saveConnector from "./saveConnector";
 import { saveLocIndex } from "./saveLocIndex";
 import CaptureGaps, {
   gapReasonFromError,
+  isAuthClassGapReason,
   wiringConnectorGapId,
   wiringPageGapId,
 } from "../captureGaps";
@@ -29,10 +30,6 @@ export interface SaveEntireWiringOptions {
 
 function relFromRoot(outputRoot: string, absolutePath: string): string {
   return relative(outputRoot, absolutePath).replace(/\\/g, "/");
-}
-
-function isAuthClassGapReason(reason: string): boolean {
-  return reason === "auth" || reason === "subscription-expired";
 }
 
 export default async function saveEntireWiring(

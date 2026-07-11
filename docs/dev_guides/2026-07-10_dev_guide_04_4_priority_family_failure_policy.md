@@ -236,5 +236,4 @@ function isAuthClassGapReason(reason: string): boolean {
 
 ## Status
 
-**Plan — ready for plan-package approval; not implementation-approved.**  
-Implement only after Guide 04.3 is committed and tests pass. Approve via [plan package](./2026-07-10_plan_package_04_4_priority_family_failure_policy.md).
+**Executed** (2026-07-10) — commit `989749e`; mock/unit verification complete; live matrix deferred until subscription renewal.

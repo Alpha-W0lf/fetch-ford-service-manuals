@@ -20,6 +20,8 @@ export type SaveOptions = Pick<CLIArgs, "saveHTML" | "ignoreSaveErrors"> & {
   refreshCookies?: () => Promise<void>;
   /** @internal consecutive auth-class failures (403, etc.) this run */
   authFailureStreak?: number;
+  /** @internal set after the one allowed cookie refresh per worker run */
+  authCookieRefreshUsed?: boolean;
   /** Set when workshop auth-budget stop fires; propagates through recursive TOC calls */
   authBudgetStopRequested?: boolean;
 };
@@ -54,11 +56,13 @@ async function handleAuthClassFailure(
 
   if (
     options.authFailureStreak >= AUTH_REFRESH_THRESHOLD() &&
-    options.refreshCookies
+    options.refreshCookies &&
+    !options.authCookieRefreshUsed
   ) {
     console.log(
       `[auth] ${options.authFailureStreak} consecutive auth failures — refreshing cookies from disk...`
     );
+    options.authCookieRefreshUsed = true;
     await options.refreshCookies();
     options.authFailureStreak = 0;
     return false;

@@ -135,6 +135,101 @@ describe("workshop auth budget stop", () => {
     expect(fetchManualPage).toHaveBeenCalledTimes(2);
   });
 
+  it("refreshes cookies once per run and still reaches auth-budget stop", async () => {
+    vi.stubEnv("WORKSHOP_AUTH_STOP_THRESHOLD", "3");
+    vi.stubEnv("WORKSHOP_AUTH_REFRESH_THRESHOLD", "2");
+    const refreshCookies = vi.fn().mockResolvedValue(undefined);
+    const { root, captureGaps } = await setup();
+    const options: SaveOptions = {
+      outputRoot: root,
+      saveHTML: false,
+      ignoreSaveErrors: true,
+      captureGaps,
+      refreshCookies,
+    };
+
+    await saveEntireManual(
+      root,
+      {
+        "Page A": "DOC1",
+        "Page B": "DOC2",
+        "Page C": "DOC3",
+        "Page D": "DOC4",
+        "Page E": "DOC5",
+      },
+      baseParams,
+      browserPage,
+      options
+    );
+
+    expect(refreshCookies).toHaveBeenCalledTimes(1);
+    expect(options.authBudgetStopRequested).toBe(true);
+    expect(fetchManualPage).toHaveBeenCalledTimes(5);
+  });
+
+  it("reaches auth-budget stop with default-like thresholds after one refresh", async () => {
+    vi.stubEnv("WORKSHOP_AUTH_STOP_THRESHOLD", "4");
+    vi.stubEnv("WORKSHOP_AUTH_REFRESH_THRESHOLD", "2");
+    const refreshCookies = vi.fn().mockResolvedValue(undefined);
+    const { root, captureGaps } = await setup();
+    const pages: Record<string, string> = {};
+    for (let i = 1; i <= 8; i++) {
+      pages[`Page ${i}`] = `DOC${i}`;
+    }
+
+    await saveEntireManual(
+      root,
+      pages,
+      baseParams,
+      browserPage,
+      {
+        outputRoot: root,
+        saveHTML: false,
+        ignoreSaveErrors: true,
+        captureGaps,
+        refreshCookies,
+      }
+    );
+
+    expect(refreshCookies).toHaveBeenCalledTimes(1);
+    expect(fetchManualPage).toHaveBeenCalledTimes(6);
+    expect(
+      logSpy.mock.calls.some((c) =>
+        String(c[0]).includes("[auth-budget-stop]")
+      )
+    ).toBe(true);
+  });
+
+  it("does not stop when WORKSHOP_AUTH_STOP_ENABLED=0", async () => {
+    vi.stubEnv("WORKSHOP_AUTH_STOP_ENABLED", "0");
+    const { root, captureGaps } = await setup();
+    const options: SaveOptions = {
+      outputRoot: root,
+      saveHTML: false,
+      ignoreSaveErrors: true,
+      captureGaps,
+    };
+
+    await saveEntireManual(
+      root,
+      { "Page A": "DOC1", "Page B": "DOC2", "Page C": "DOC3", "Page D": "DOC4" },
+      baseParams,
+      browserPage,
+      options
+    );
+
+    expect(options.authBudgetStopRequested).toBeFalsy();
+    expect(
+      logSpy.mock.calls.some((c) =>
+        String(c[0]).includes("[auth-budget-stop]")
+      )
+    ).toBe(false);
+    const raw = JSON.parse(
+      fs.readFileSync(path.join(root, "capture-gaps.json"), "utf8")
+    );
+    expect(raw.gaps.length).toBe(4);
+  });
+
   it("does not stop on network failures", async () => {
     fetchManualPage.mockRejectedValue(new Error("ECONNRESET"));
     const { root, captureGaps } = await setup();

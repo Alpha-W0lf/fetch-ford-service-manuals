@@ -5,7 +5,7 @@ import fetchConnectorList from "./fetchConnectorList";
 import { sanitizeName, fileExistsNonEmpty } from "../utils";
 import { join, relative } from "path";
 import { writeFile } from "fs/promises";
-import { gapReasonFromError, wiringConnectorGapId } from "../captureGaps";
+import { gapReasonFromError, isAuthClassGapReason, wiringConnectorGapId } from "../captureGaps";
 import {
   CONNECTOR_MAX_CONSECUTIVE_AUTH_FAILURES,
   PtsAuthError,
@@ -16,10 +16,6 @@ import { withCdpChromeLock } from "../cdpConnectorPage";
 
 function relFromRoot(outputRoot: string, absolutePath: string): string {
   return relative(outputRoot, absolutePath).replace(/\\/g, "/");
-}
-
-function isAuthRelatedReason(reason: string): boolean {
-  return reason === "auth" || reason === "subscription-expired";
 }
 
 export default async function saveConnector(
@@ -104,7 +100,7 @@ export default async function saveConnector(
           `  Connector load failed ${connector.Desc} (${connector.Name}): ${errMsg}`
         );
 
-        if (isAuthRelatedReason(reason)) {
+        if (isAuthClassGapReason(reason)) {
           consecutiveAuthFailures += 1;
           if (
             consecutiveAuthFailures >= CONNECTOR_MAX_CONSECUTIVE_AUTH_FAILURES

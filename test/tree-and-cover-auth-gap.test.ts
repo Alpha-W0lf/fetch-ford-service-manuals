@@ -60,4 +60,30 @@ describe("TreeAndCover auth gap", () => {
       raw.gaps.some((g: { id: string }) => g.id === "workshop:tree-and-cover")
     ).toBe(true);
   });
+
+  it("rethrows non-auth TreeAndCover failures", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "ford-tree-cover-"));
+    tmpDirs.push(root);
+    const captureGaps = await CaptureGaps.load(root);
+    fetchTreeAndCover.mockRejectedValue(new Error("ECONNRESET"));
+
+    const config = {
+      workshop: {
+        modelYear: "2020",
+        CategoryDescription: "GSIXML",
+        category: "33",
+      },
+    } as never;
+
+    await expect(
+      modernWorkshop(config, root, {} as never, {
+        outputRoot: root,
+        saveHTML: false,
+        ignoreSaveErrors: true,
+        captureGaps,
+      })
+    ).rejects.toThrow("ECONNRESET");
+
+    expect(saveEntireManual).not.toHaveBeenCalled();
+  });
 });

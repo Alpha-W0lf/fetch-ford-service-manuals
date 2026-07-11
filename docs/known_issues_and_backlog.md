@@ -23,11 +23,12 @@
 |----|----------|-------|----------|------------------------|
 | **RUN-01** | ~~P0~~ | **Bulk orchestrator stall** | [Investigation](./2026-07-09_bulk_stall_root_cause_investigation.md) | **Fixed** Guide 04.1 (`6c15180`) |
 | **RUN-02** | ~~P1~~ | **Hung / orphan `prune-cdp-tabs`** | Prior session PIDs; killed at 04.2 startup | **Mitigated** REL-03 orphan reaper |
-| **RUN-05** | P1 | **Auth burst / 403** | Overnight `failed:127` transient; morning `subscriptionExpired` storm | Cookie refresh; **04.3** cooldown |
+| **RUN-05** | P1 | **Auth burst / 403** | Overnight `failed:127` transient; morning `subscriptionExpired` storm | Cookie refresh; **04.3** per-vehicle cooldown (executed 2026-07-10) |
 | **RUN-06** | P1 | **Capture E-Transit fails** | `2022/2023/2024-e-transit`: model not in PTS menu | Guide 07 candidate |
 | **RUN-07** | P2 | **Chrome error tabs** | Under CDP load | Expected under stress |
 | **RUN-08** | ~~P2~~ | **Capture PTS home timeouts** | `2009-crown-victoria` succeeded 01:36 session after deferral | **Resolved** this session |
 | **RUN-09** | P2 | **Overnight Mustang/Expedition 403 cluster** | 2012–2021 Mustang FAIL; 2022+ recovered | Auth/session; retry when cookies fresh |
+| **SEC-01** | **P0** | **Workshop error logs can expose session cookies** | `saveEntireManual.ts` passes raw Axios errors to `console.error`; `2014-fiesta.log` contains cookie-bearing request configuration | Treat affected logs as sensitive; 04.4 must reuse `logHttpError()` and add redaction regression coverage before its worker changes ship |
 
 ---
 
@@ -42,7 +43,7 @@
 | **REL-05** | P1 | **No orchestrator heartbeat** | Can't tell stall vs slow from bulk log | **Guide 04.2** executed — `[heartbeat]` lines |
 | **REL-06** | P1 | **No per-job wall clock** | `yarn start` unbounded runtime | **Guide 04.2** — `WORKER_MAX_RUNTIME_MS` |
 | **REL-07** | P2 | **PTS/session drift** | 403s, UI timeouts | Cookie refresh + queue retry (mitigated, not eliminated) |
-| **REL-08** | **P1** | **INCOMPLETE fast-retry storm** | `2024-bronco` ~691 START/INCOMPLETE cycles in ~1h; one slot wasted on second-level auth fails | **Guide 04.3 candidate** — auth-aware INCOMPLETE, per-vehicle cooldown, fix gap attempt accounting |
+| **REL-08** | ~~P1~~ | **INCOMPLETE fast-retry storm + orchestrator stream crash** | Auth retry churn wastes a slot; 2026-07-10 run crashed with `ERR_STREAM_WRITE_AFTER_END` | **Fixed** Guide 04.3 (2026-07-10) — auth-aware INCOMPLETE, per-vehicle cooldown, stream guard; **04.4** follows for FAIL-path / worker auth-budget |
 | **REL-09** | P2 | **`subscriptionExpired` misread as sub end** | URL `expiredOn=` is often stale session; operator can still log in | Documented in architecture; improve orchestrator log messaging |
 
 ---
@@ -154,7 +155,8 @@
 | **Guide 06** | Pre-2003 legacy capture | After 05 + `legacy_pts_capture.md` filled |
 | **Phase G** | Watchdog, pre-commit, health consolidation | Post-subscription or maintenance window |
 | **Guide 07** (not authored) | E-Transit PTS availability / alternate capture path | If tier-1 blocked |
-| **Guide 04.3** | INCOMPLETE retry storm / auth cooldown | **P1** — [plan](./dev_guides/2026-07-09_dev_guide_04_3_incomplete_retry_storm.md); after bulk stops |
+| **Guide 04.3** | INCOMPLETE retry storm / auth cooldown | **P1** — **executed** (2026-07-10) |
+| **Guide 04.4** | Priority-family partial-failure policy | **P1** — [plan](./dev_guides/2026-07-10_dev_guide_04_4_priority_family_failure_policy.md); after 04.3 commit |
 
 ---
 
@@ -172,6 +174,7 @@
 
 | Date | Update |
 |------|--------|
+| 2026-07-10 21:55 | Guide 04.3 executed — REL-08 resolved; per-vehicle auth cooldown, stream guard, wiring gap accounting |
 | 2026-07-09 12:06 | Fifth-pass audit; `2024-bronco` OK; 21 verified; docs + tsconfig commit |
 | 2026-07-09 11:55 | Third-pass audit; Guide 04.3 plan; backlog sync; CODE-12 emit artifacts |
 | 2026-07-09 11:50 | CODE-11 fixed — `noEmit: true` in tsconfig (IDE TS5055) |

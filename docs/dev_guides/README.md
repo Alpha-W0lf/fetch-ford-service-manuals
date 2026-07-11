@@ -25,7 +25,9 @@
 | 04 | [2026-07-08_dev_guide_04_orchestrator_split.md](./2026-07-08_dev_guide_04_orchestrator_split.md) | Major refactor | **Executed** (live soak 2026-07-08) | **No** (during impl) |
 | 04.1 | [2026-07-09_dev_guide_04_1_orchestrator_reliability.md](./2026-07-09_dev_guide_04_1_orchestrator_reliability.md) | Reliability fix | **Executed** (2026-07-09) | **No** (during impl) |
 | 04.2 | [2026-07-09_dev_guide_04_2_unsupervised_reliability.md](./2026-07-09_dev_guide_04_2_unsupervised_reliability.md) | Reliability | **Executed** (2026-07-09) | **No** (during impl) |
-| **04.3** | [2026-07-09_dev_guide_04_3_incomplete_retry_storm.md](./2026-07-09_dev_guide_04_3_incomplete_retry_storm.md) | Reliability | **Plan — implementation-ready** after bulk stops; [context](./2026-07-09_dev_guide_04_3_context.md) |
+| **04.3** | [2026-07-09_dev_guide_04_3_incomplete_retry_storm.md](./2026-07-09_dev_guide_04_3_incomplete_retry_storm.md) | Reliability | **Executed** (2026-07-10) — REL-08; [context](./2026-07-09_dev_guide_04_3_context.md) |
+| **04.4** | [2026-07-10_dev_guide_04_4_priority_family_failure_policy.md](./2026-07-10_dev_guide_04_4_priority_family_failure_policy.md) | Reliability | **Plan ready** (93/100) — after 04.3 commit; [plan package](./2026-07-10_plan_package_04_4_priority_family_failure_policy.md) |
+| **04.4 context** | [2026-07-10_dev_guide_04_4_priority_family_failure_context.md](./2026-07-10_dev_guide_04_4_priority_family_failure_context.md) | Context | **Ready** (92/100) |
 | 05 | [2026-07-08_dev_guide_05_capture_modularization.md](./2026-07-08_dev_guide_05_capture_modularization.md) | Refactor | **Implementation-ready** | Yes (bulk can run) |
 | 06 | [2026-07-08_dev_guide_06_legacy_capture.md](./2026-07-08_dev_guide_06_legacy_capture.md) | Feature | **Plan** — needs Guide 05 + [legacy_pts_capture.md](../reference/legacy_pts_capture.md) | After capture restart |
 
@@ -39,7 +41,8 @@
 
 ```
 01 (executed) → 02 → 03 → 04 (executed) → 04.1 (executed) → 04.2 (executed)
-                      ↘ 04.3 (plan — after bulk stops) — REL-08 retry storm
+                      ↘ 04.3 (executed 2026-07-10) — REL-08 + stream guard
+                         ↘ 04.4 (plan ready; commit immediately after 04.3) — auth-budget + early-failure gaps
                       ↘ 05 (implementation-ready) → 06 (plan)
                       ↘ Phase G (watchdog, hooks)
 ```
@@ -52,7 +55,8 @@
 | Ready for Guide 04.1 code? | **Done** — executed `6c15180`; early soak positive |
 | Ready for Guide 04.2? | **Done** — executed 2026-07-09; 84 tests |
 | More planning passes for Guide 05? | **No** — ready when capture stopped |
-| Ready for Guide 04.3 code? | **Yes**, after bulk stopped + Tom says "follow dev guide 04.3" — [context](./2026-07-09_dev_guide_04_3_context.md) |
+| Ready for Guide 04.3 code? | **Done** — executed 2026-07-10; 98 tests |
+| Ready for Guide 04.4 code? | **Yes** — after 04.3 commit; [plan package](./2026-07-10_plan_package_04_4_priority_family_failure_policy.md); [sequence](./2026-07-10_combined_sequence_04_3_04_4.md) |
 | Ready for Guide 05 code? | **Yes**, after capture stopped + Tom says "follow dev guide 05" |
 | Ready for Guide 06? | **No** — needs Guide 05 executed + operator-filled `legacy_pts_capture.md` |
 | Numbered dev guides after 06? | **None.** Phase G (hooks, watchdog, logging) is **not** a numbered guide yet. |

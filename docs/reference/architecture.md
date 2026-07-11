@@ -96,6 +96,8 @@ Headless workshop/wiring **do not** acquire `cdp-chrome.lock`.
 
 **Worker lifecycle (Guide 04.1 + 04.2):** `startWorkers` tracks `{ vid, pid, done, reaped, startedAt, logPath }` per slot. Each tick: `reapHungWorkers` (alive+log-stale or max runtime) → `reapStaleWorkers` (dead PID) → `reapWorkers` → `reapOrphanPrunes` — forced kills patch queue from **disk truth** (`patchStaleWorkerFromDisk`), not yarn exit code. Heartbeat `[heartbeat]` lines emit when workers are in-flight. Fleet reconcile while workers run stays disabled; per-vehicle reaps handle orphaned `downloading` rows.
 
+**Per-vehicle auth cooldown (Guide 04.3):** After repeated fast auth-class `incomplete` outcomes, `lib/vehicle-cooldown.js` excludes a vehicle from dispatch for `VEHICLE_COOLDOWN_SEC`. Cooldowns clear on successful connector preflight only (not on generic cookie refresh). This is separate from fleet-wide auth circuit breaker (`lib/bulk-circuit-breaker.js`).
+
 **Incident lesson (2026-07-08):** Aggressive tab prune during an active connector job closed a live tab → worker error. Prune rules are now conservative.
 
 ---

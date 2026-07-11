@@ -7,20 +7,32 @@ import {
   WiringTableOfContentsEntry,
 } from "./fetchTableOfContents";
 import { mkdir, writeFile } from "fs/promises";
-import { join } from "path";
+import { join, relative } from "path";
 import { Page } from "playwright";
 import { FetchManualPageParams } from "../workshop/fetchManualPage";
 import savePage, { WiringFetchPageParams, WiringSaveContext } from "./savePage";
 import saveConnector from "./saveConnector";
 import { saveLocIndex } from "./saveLocIndex";
-import CaptureGaps from "../captureGaps";
-import { probeConnectorAccess } from "../ptsAuth";
+import CaptureGaps, {
+  gapReasonFromError,
+  wiringConnectorGapId,
+  wiringPageGapId,
+} from "../captureGaps";
+import { probeConnectorAccess, PtsAuthError } from "../ptsAuth";
 import { getConnectorProbeUrl } from "../connectorProbeUrl";
 import { createConnectorPage } from "../cdpConnectorPage";
 
 export interface SaveEntireWiringOptions {
   connectorsOnly?: boolean;
   refreshCookies?: () => Promise<void>;
+}
+
+function relFromRoot(outputRoot: string, absolutePath: string): string {
+  return relative(outputRoot, absolutePath).replace(/\\/g, "/");
+}
+
+function isAuthClassGapReason(reason: string): boolean {
+  return reason === "auth" || reason === "subscription-expired";
 }
 
 export default async function saveEntireWiring(
@@ -70,6 +82,17 @@ export default async function saveEntireWiring(
   let connectorPage: Page | null = null;
   let closeConnectorPage: (() => Promise<void>) | null = null;
   let connectorUsesCdp = false;
+  let connectorPortalReady = false;
+
+  async function resetConnectorSession() {
+    if (closeConnectorPage) {
+      await closeConnectorPage();
+      closeConnectorPage = null;
+      connectorPage = null;
+      connectorUsesCdp = false;
+      ctx.connectorUsesCdp = false;
+    }
+  }
 
   try {
   for (let i = 0; i < toc.length; i++) {
@@ -119,6 +142,7 @@ export default async function saveEntireWiring(
           const probeUrl = getConnectorProbeUrl(process.cwd());
           console.log("Verifying connector portal access...");
           await probeConnectorAccess(connectorPage, probeUrl);
+          connectorPortalReady = true;
           console.log(
             `Connector portal access OK (${handle.usesCdp ? "CDP" : "headless"})`
           );
@@ -139,6 +163,55 @@ export default async function saveEntireWiring(
       }
     } catch (e: any) {
       if (ignoreSaveErrors) {
+        const reason =
+          e instanceof PtsAuthError ? e.reason : gapReasonFromError(e);
+        if (captureGaps && isAuthClassGapReason(reason)) {
+          if (isConnectors(doc) && !connectorPortalReady) {
+            await captureGaps.record({
+              id: wiringConnectorGapId(doc.Number, "__probe__"),
+              section: "wiring-connector",
+              name: doc.Title,
+              docId: doc.Number,
+              cell: doc.Number,
+              relativePath: relFromRoot(path, join(connectorPath, `${doc.Title}`)),
+              expectedFile: relFromRoot(path, join(connectorPath, `${doc.Title}`)),
+              reason,
+              error: e instanceof Error ? e.message : String(e),
+            });
+          } else if (
+            isConnectors(doc) &&
+            connectorPortalReady &&
+            e instanceof PtsAuthError
+          ) {
+            await captureGaps.record({
+              id: wiringConnectorGapId(doc.Number, "__auth-streak__"),
+              section: "wiring-connector",
+              name: doc.Title,
+              docId: doc.Number,
+              cell: doc.Number,
+              relativePath: relFromRoot(path, join(connectorPath, `${doc.Title}`)),
+              expectedFile: relFromRoot(path, join(connectorPath, `${doc.Title}`)),
+              reason,
+              error: e instanceof Error ? e.message : String(e),
+            });
+          } else if (isLocIndex(doc)) {
+            await captureGaps.record({
+              id: wiringPageGapId(doc.Number, "loc-index"),
+              section: "wiring-locindex",
+              name: doc.Title,
+              docId: doc.Number,
+              cell: doc.Number,
+              page: "loc-index",
+              relativePath: relFromRoot(path, join(connectorPath, "Connectors.csv")),
+              expectedFile: relFromRoot(path, join(connectorPath, "Connectors.csv")),
+              reason,
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
+        }
+        if (isConnectors(doc) && !connectorPortalReady) {
+          await resetConnectorSession();
+        }
         console.error(
           `Skipping ${doc.Title} (${doc.Type}) due to error: ${e.message}`
         );
@@ -148,10 +221,6 @@ export default async function saveEntireWiring(
     }
   }
   } finally {
-    if (closeConnectorPage) {
-      await closeConnectorPage();
-      closeConnectorPage = null;
-      connectorPage = null;
-    }
+    await resetConnectorSession();
   }
 }

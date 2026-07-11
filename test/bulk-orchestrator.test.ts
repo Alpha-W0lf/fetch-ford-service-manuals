@@ -2,12 +2,16 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { EventEmitter, PassThrough } from "stream";
 import {
   circuitBreakerBlocksStart,
+  classifyIncompleteAuth,
+  connectorPreflight,
   fixOrphanDownloading,
   getVehicleLogMtime,
   idleLimitTicks,
   inFlightExcludeCsv,
+  isAuthGapReason,
   logHeartbeat,
   orchestratorTick,
   patchStaleWorkerFromDisk,
@@ -16,7 +20,9 @@ import {
   reapHungWorkers,
   reapWorkers,
   reapStaleWorkers,
+  spawnYarnStart,
 } from "../lib/bulk-orchestrator-lib.js";
+import { createVehicleCooldownStore } from "../lib/vehicle-cooldown.js";
 import {
   recentAuthFailureCount,
   tripCircuitBreaker,
@@ -136,7 +142,44 @@ describe("bulk-orchestrator-lib", () => {
       workerMaxRuntimeMs: 14400000,
       workerKillGraceMs: 5000,
       pruneOrphanMaxAgeMin: 30,
+      vehicleFastFailSec: 60,
+      vehicleFastFailCount: 3,
+      vehicleCooldownSec: 900,
+      vehicleCooldownFile: path.join(root, "logs/vehicle-cooldown.json"),
+      vehicleAuthEventsFile: path.join(root, "logs/recent-auth-events.jsonl"),
     };
+  }
+
+  function mkAuthIncompleteManual(root: string, outputDir: string): void {
+    const full = path.join(root, outputDir);
+    writeMinimalPdfs(full, 55);
+    fs.writeFileSync(path.join(full, "cover.html"), "<html></html>");
+    const wiring = path.join(full, "Wiring");
+    fs.mkdirSync(wiring, { recursive: true });
+    fs.writeFileSync(path.join(wiring, "toc.json"), "[]");
+    const conn = path.join(wiring, "Connector Views");
+    fs.mkdirSync(conn, { recursive: true });
+    fs.writeFileSync(path.join(conn, "connectors.json"), "[]");
+    fs.writeFileSync(
+      path.join(full, "capture-gaps.json"),
+      JSON.stringify({
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        gaps: [
+          {
+            id: "workshop:123",
+            section: "workshop",
+            name: "Page",
+            relativePath: "page.pdf",
+            expectedFile: "page.pdf",
+            reason: "auth",
+            error: "403",
+            attempts: 1,
+            lastAttemptAt: new Date().toISOString(),
+          },
+        ],
+      })
+    );
   }
 
   it("resolveFinalVehicleStatus matches run_one outcomes", () => {
@@ -812,5 +855,158 @@ describe("bulk-orchestrator-lib", () => {
         statSync: (p: string) => fs.statSync(p),
       } as never)
     ).toBeNull();
+  });
+
+  it("isAuthGapReason accepts auth and subscription-expired only", () => {
+    expect(isAuthGapReason("auth")).toBe(true);
+    expect(isAuthGapReason("subscription-expired")).toBe(true);
+    expect(isAuthGapReason("network")).toBe(false);
+  });
+
+  it("classifyIncompleteAuth prefers blocking gap reasons over log", () => {
+    const root = mkRoot();
+    const outputDir = "manuals/classify-auth";
+    mkAuthIncompleteManual(root, outputDir);
+    const logPath = path.join(root, "logs/classify.log");
+    fs.writeFileSync(logPath, "network timeout only\n");
+    expect(classifyIncompleteAuth(root, outputDir, logPath)).toBe("auth");
+  });
+
+  it("spawnYarnStart settles once when child errors then pipes late data", async () => {
+    const root = mkRoot();
+    const config = baseConfig(root, writeQueue(root, []));
+    const logPath = path.join(root, "logs/stream-guard.log");
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: PassThrough;
+      stderr: PassThrough;
+      pid: number;
+    };
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.pid = 4242;
+
+    const codePromise = spawnYarnStart(config, ["-c", "x"], logPath, null, {
+      spawn: () => child as never,
+      log: () => {},
+    } as never);
+
+    child.emit("error", new Error("spawn failed"));
+    child.stdout.write("late stdout\n");
+    child.stderr.write("late stderr\n");
+    child.emit("close", 1);
+
+    await expect(codePromise).resolves.toBe(1);
+  });
+
+  it("runOne auth INCOMPLETE records failure, event, and cooldown", async () => {
+    const root = mkRoot();
+    const outputDir = "manuals/auth-incomplete";
+    const paramsRel = "vehicles/auth-inc/params.json";
+    fs.mkdirSync(path.dirname(path.join(root, paramsRel)), { recursive: true });
+    fs.writeFileSync(path.join(root, paramsRel), "{}");
+    mkAuthIncompleteManual(root, outputDir);
+    const queuePath = writeQueue(root, [
+      {
+        id: "auth-inc-v",
+        paramsFile: paramsRel,
+        outputDir,
+        status: "pending",
+      },
+    ]);
+    const config = baseConfig(root, queuePath);
+    const logLines: string[] = [];
+    const state = {
+      lastCookieRefresh: 0,
+      vehicleCooldown: createVehicleCooldownStore(config.vehicleCooldownFile, {
+        fastFailSec: 60,
+        fastFailCount: 1,
+        cooldownSec: 900,
+      }),
+    };
+    const entry = {
+      vid: "auth-inc-v",
+      done: false,
+      exitCode: null,
+      pid: null,
+      reaped: false,
+      startedAt: Date.now() - 5000,
+      logPath: path.join(root, "logs/auth-inc-v.log"),
+      _resolveWorker: null as ((code: number) => void) | null,
+    };
+
+    const deps = {
+      log: (...args: unknown[]) => logLines.push(args.join(" ")),
+      nowSec: () => Math.floor(Date.now() / 1000),
+      fetch: async () => ({ ok: false }),
+      spawnSync: (cmd: string, args: string[]) => {
+        if (cmd === "bash") return { status: 0 };
+        return { status: 0, stdout: "", stderr: "" };
+      },
+      spawn: (cmd: string) => {
+        if (cmd !== "yarn") {
+          return { pid: 1, stdout: { pipe: () => {} }, stderr: { pipe: () => {} }, on: () => {} };
+        }
+        const child = new EventEmitter() as EventEmitter & {
+          stdout: PassThrough;
+          stderr: PassThrough;
+          pid: number;
+        };
+        child.stdout = new PassThrough();
+        child.stderr = new PassThrough();
+        child.pid = 1001;
+        setImmediate(() => {
+          fs.writeFileSync(entry.logPath, "HTTP 403 Access Denied\n");
+          child.emit("close", 0);
+        });
+        return child as never;
+      },
+      sleep: async () => {},
+    };
+
+    const code = await runOne(
+      config,
+      {
+        v: { id: "auth-inc-v", paramsFile: paramsRel, outputDir },
+        workshop: true,
+        wiring: true,
+        stale: false,
+      },
+      deps as never,
+      state as never,
+      entry as never
+    );
+
+    expect(code).toBe(1);
+    expect(logLines.some((l) => l.includes("[auth-incomplete]"))).toBe(true);
+    expect(fs.existsSync(config.recent403File)).toBe(true);
+    expect(fs.readFileSync(config.vehicleAuthEventsFile, "utf8")).toContain(
+      "auth-inc-v"
+    );
+    expect(state.vehicleCooldown.isExcluded("auth-inc-v")).toBe(true);
+    expect(logLines.some((l) => l.includes("[cooldown]"))).toBe(true);
+  });
+
+  it("connectorPreflight success clears vehicle auth cooldowns", () => {
+    const root = mkRoot();
+    const config = baseConfig(root, writeQueue(root, []));
+    const store = createVehicleCooldownStore(config.vehicleCooldownFile, {
+      fastFailSec: 60,
+      fastFailCount: 1,
+      cooldownSec: 900,
+    });
+    store.recordOutcome("storm-v", {
+      runtimeSec: 10,
+      authClass: "auth",
+      finalStatus: "incomplete",
+    });
+    expect(store.isExcluded("storm-v")).toBe(true);
+
+    const state = { vehicleCooldown: store };
+    const ok = connectorPreflight(config, state, {
+      log: () => {},
+      spawnSync: () => ({ status: 0, stdout: "ok\n", stderr: "" }),
+    } as never);
+    expect(ok).toBe(true);
+    expect(store.isExcluded("storm-v")).toBe(false);
   });
 });

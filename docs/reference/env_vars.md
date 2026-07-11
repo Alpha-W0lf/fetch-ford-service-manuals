@@ -6,7 +6,7 @@ Variables read by the bulk pipeline. Defaults shown are code defaults when unset
 
 ## Bulk orchestrator (`scripts/bulk-download.sh` → `scripts/bulk-orchestrator.js`)
 
-Implementation: `lib/bulk-orchestrator-lib.js`, `lib/bulk-circuit-breaker.js`, `lib/bulk-download-status.js`, `lib/bulk-auth-log.js`.
+Implementation: `lib/bulk-orchestrator-lib.js`, `lib/bulk-circuit-breaker.js`, `lib/bulk-download-status.js`, `lib/bulk-auth-log.js`, `lib/vehicle-cooldown.js`.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
@@ -25,6 +25,11 @@ Implementation: `lib/bulk-orchestrator-lib.js`, `lib/bulk-circuit-breaker.js`, `
 | `WORKER_MAX_RUNTIME_MS` | `14400000` | Kill worker after wall-clock runtime since `downloading` (`0` = off) |
 | `WORKER_KILL_GRACE_MS` | `5000` | Wait after SIGTERM before SIGKILL on hung worker |
 | `PRUNE_ORPHAN_MAX_AGE_MIN` | `30` | Reap orphan `prune-cdp-tabs` processes older than this (`0` = off) |
+| `VEHICLE_FAST_FAIL_SEC` | `60` | Job runtime below this counts as fast-fail for auth INCOMPLETE cooldown — Guide 04.3 |
+| `VEHICLE_FAST_FAIL_COUNT` | `3` | Fast auth INCOMPLETE outcomes before per-vehicle cooldown |
+| `VEHICLE_COOLDOWN_SEC` | `900` | Exclude vehicle from dispatch after fast-fail threshold (15 min) |
+| `VEHICLE_COOLDOWN_FILE` | `logs/vehicle-cooldown.json` | Persistent per-vehicle cooldown state |
+| `VEHICLE_AUTH_EVENTS_FILE` | `logs/recent-auth-events.jsonl` | Append-only auth INCOMPLETE audit log |
 | `EXCLUDE_CSV` | — | Comma-separated vehicle IDs to skip (internal; in-flight workers) |
 
 ---

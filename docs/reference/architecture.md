@@ -150,7 +150,7 @@ Canonical blocking rules: [schemas.md](./schemas.md#capture-gap-blocking-canonic
 
 **Forbidden:** Start `bulk-download.sh` from Cursor/agent background shells; `flock` on macOS; push to upstream; fleet `backfill-capture-gaps` on every bulk boot (`SKIP_BACKFILL_ON_START=1` default).
 
-**Experimental:** `./scripts/install-bulk-watchdog.sh` — not proven supervision.
+**Auto-restart:** `./scripts/install-bulk-watchdog.sh` — launchd companion that restarts bulk via Terminal.app when down. **Fixed 2026-07-12:** launcher must hardcode absolute `FORD_REPO_ROOT` (copying the ensure script into `~/bin` caused wrong ROOT and a Terminal window storm). Intentional stop: `touch logs/watchdog.pause`. Manual Terminal.app start remains the blessed interactive path.
 
 ---
 

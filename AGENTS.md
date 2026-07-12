@@ -37,7 +37,7 @@ Read:
 | Param capture (in Terminal already) | `./scripts/run-capture-params.sh` |
 | Health | `./scripts/queue-status.sh --health` |
 
-Watchdog (`./scripts/install-bulk-watchdog.sh`) is **experimental** — do not treat as proven supervision.
+**Watchdog (critical auto-restart):** `./scripts/install-bulk-watchdog.sh` installs a TCC-safe `~/bin` launcher with absolute ROOT (pgrep + Terminal osascript only). Pause: `touch ~/Library/Logs/ford-bulk-watchdog.pause`. See `docs/PIPELINE_OPS.md`.
 
 ## Code organization
 

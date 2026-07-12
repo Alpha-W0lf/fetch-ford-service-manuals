@@ -40,7 +40,7 @@
 | **REL-01** | **P0** | **Hung-alive worker** | Yarn PID lives, log frozen, slot blocked (2016 TCM ~9 min @ 99% CPU) | **Guide 04.2** executed — `reapHungWorkers` |
 | **REL-02** | ~~P1~~ | **Capture no clean exit** | Session done but node idle | **Fixed** Guide 04.2 — verified 01:36 session |
 | **REL-03** | P1 | **Orphan prune reaper** | Old `prune-cdp-tabs` survive hours, compete for CDP | **Guide 04.2** — `lib/orphan-prune-reaper.js` |
-| **REL-04** | P0 | **No proven auto-supervisor** | Orchestrator crash → bulk stops | Phase G — OPS-02/03; **04.2** stall detection in `ensure-bulk-running.sh` |
+| **REL-04** | P0 | **Auto-supervisor required** | Orchestrator crash → bulk stops | Watchdog **restored + fixed** 2026-07-12 (absolute ROOT launcher); see OPS-02 |
 | **REL-05** | P1 | **No orchestrator heartbeat** | Can't tell stall vs slow from bulk log | **Guide 04.2** executed — `[heartbeat]` lines |
 | **REL-06** | P1 | **No per-job wall clock** | `yarn start` unbounded runtime | **Guide 04.2** — `WORKER_MAX_RUNTIME_MS` |
 | **REL-07** | P2 | **PTS/session drift** | 403s, UI timeouts | Cookie refresh + queue retry (mitigated, not eliminated) |
@@ -54,7 +54,7 @@
 | ID | P | Issue | Status | Dev guide / notes |
 |----|---|-------|--------|-------------------|
 | **OPS-01** | P0 | Bulk must start from **Terminal.app**, not Cursor shell | ✅ Documented `AGENTS.md` | — |
-| **OPS-02** | P0 | No proven **auto-supervisor** (launchd watchdog unverified) | Open | Phase G — prove FDA path or remove |
+| **OPS-02** | P0 | Broken launchd watchdog repeatedly opened stale Terminal windows | **Fixed + reinstalled 2026-07-12** | Root cause: copied script → wrong ROOT. Fix: thin absolute `FORD_REPO_ROOT` launcher + validate before `osascript` + `logs/watchdog.pause`. Do not copy ensure script into `~/bin` |
 | **OPS-03** | P0 | **macOS TCC** blocks launchd scripts in `~/Documents` | Open | Watchdog experimental only |
 | **OPS-04** | P1 | **Stale locks** after killed orchestrator | Mitigated `bulk-lock.js` | `pipeline-health.sh --fix-locks` |
 | **OPS-05** | P1 | **Multiple overlapping launchers** | Documented | Phase G consolidate |
@@ -163,7 +163,7 @@
 
 ## Open questions (operator decisions)
 
-1. **Watchdog:** Prove launchd (OPS-02) vs accept Terminal-only supervision?
+1. **Watchdog (decided 2026-07-12):** Keep current script uninstalled; redesign/prove later only if unattended auto-restart remains useful.
 2. **Tier-1 incomplete policy:** Always gap-retry vs accept `incomplete` and move on?
 3. **E-Transit:** Skip tier-1, manual params, or alternate PTS navigation (RUN-06)?
 4. **Worker timeouts (04.2):** Defaults `WORKER_LOG_STALE_MS=20m`, `WORKER_MAX_RUNTIME_MS=4h` — see 04.2 pass 2
@@ -176,6 +176,7 @@
 
 | Date | Update |
 |------|--------|
+| 2026-07-12 | OPS-02 incident: experimental watchdog opened 306 Terminal windows (copied launcher wrong ROOT). Later same day: restored with absolute-root thin launcher + pause file; reinstalled |
 | 2026-07-12 | Linked vehicle library / Mechanic RAG program pointer (process/unify pending; hub in second_brain) |
 | 2026-07-10 21:55 | Guide 04.3 executed — REL-08 resolved; per-vehicle auth cooldown, stream guard, wiring gap accounting |
 | 2026-07-09 12:06 | Fifth-pass audit; `2024-bronco` OK; 21 verified; docs + tsconfig commit |

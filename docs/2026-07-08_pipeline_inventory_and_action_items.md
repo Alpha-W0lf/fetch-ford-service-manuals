@@ -125,7 +125,7 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 | **P0** | Run param capture in parallel | Drain needs_params | Medium | 10 still blocked | CDP contention | **Retry pass done** — REL-02 clean exit |
 | **P1** | **E-Transit capture** — PTS menu missing model for 2022/23 | Tier-1 blocked; matchers insufficient | Medium | 3 tier-1 vehicles | Wrong workaround | **Open — RUN-06** |
 | **P1** | **Pre-2003 automated capture** (not manual DevTools) | 3 vehicles now; fleet will grow | Medium | Pre-2003 stays blocked | Scope creep mid-sprint | **Backlog — Guide 06** |
-| **P1** | Prove or remove launchd watchdog | Experimental; TCC issues | Medium | No auto-restart overnight | Spurious Terminal tabs | Open |
+| **P1** | Watchdog absolute-root fix + reinstall | Copied launcher wrong ROOT → 306 windows; auto-restart is critical | Medium | Overnight stop without recovery | Bad reinstall recreates storm | ✅ Fixed + reinstalled 2026-07-12 |
 | **P1** | Foundation docs + dev guides | Maintainability | Low | Drift continues | None | **Guides 01–04 executed; 05 ready** |
 | **P1** | Split `bulk-download.sh` | Maintainability | Medium | Harder debugging | Break running pipeline | **Done (Guide 04)** |
 | **P1** | Retry `2011-f-450` gap-fill | Tier-1 incomplete | Low | Missing pages | Queue time | Auto when slot free |
@@ -134,7 +134,7 @@ Priority: **P0** = blocks subscription goals · **P1** = reliability/maintainabi
 | **P2** | Orchestrator heartbeat + capture pass summary logging | Debug long runs without vehicle log tail | Low | Harder ops triage | Log volume | Open — see runtime observations doc |
 | **P2** | Consolidate start paths in docs | Consistency | Low | Confusion | None | ✅ Done |
 | **P2** | `AGENTS.md` repo guardrails | Prevent AI slop | Medium | Over-engineering | Instruction drift | ✅ Done |
-| **P2** | Uninstall watchdog after subscription | Cleanup | Low | Leftover launchd | None | Post-subscription |
+| **P2** | Uninstall broken watchdog (interim) | Cleanup after window storm | Low | Leftover launchd | None | ✅ Interim 2026-07-12; then restored with fix same day |
 
 ---
 
@@ -206,7 +206,7 @@ upstream → https://github.com/iamtheyammer/fetch-ford-service-manuals.git (fet
 
 ## Open questions
 
-1. Should launchd watchdog be finished (FDA grant / different launcher) or removed until post-subscription?
+1. ~~Should launchd watchdog be finished or removed?~~ **Resolved:** keep + fix absolute ROOT launcher; pause file for intentional stop.
 2. Accept `incomplete` for fill years and move on, or always gap-retry tier-1?
 3. Pre-2003 automation design: **single legacy branch in `src/capture/`** (Guide 06) — exploration doc required first
 

@@ -78,6 +78,22 @@ Context assessment: [2026-07-08_codebase_foundation_context_assessment.md](./202
 
 ---
 
-## Experimental
+`./scripts/install-bulk-watchdog.sh` — launchd every 5 min + at login. Restores crashed/stopped bulk via Terminal.app.
 
-`./scripts/install-bulk-watchdog.sh` — launchd auto-restart; **unproven** (macOS TCC issues). Terminal.app supervision is the proven path.
+**2026-07-12 root causes (fixed):**
+1. Installer copied `ensure-bulk-running.sh` into `~/bin` with relative `ROOT="$(dirname "$0")/.."` → `/Users/tom` → Terminal window storm.
+2. Thin `exec` of a script under `~/Documents` from launchd → TCC `Operation not permitted` (exit 126).
+
+**Fix:** TCC-safe `~/bin/ford-bulk-watchdog.sh` with **hardcoded absolute ROOT** (pgrep + osascript only; no Documents I/O from launchd); full stall checks remain in in-repo `ensure-bulk-running.sh` when run from Terminal/user shell; pause/cooldown/logs under `~/Library/Logs/`.
+
+| Action | Command |
+|--------|---------|
+| Install / reinstall | `./scripts/install-bulk-watchdog.sh` |
+| Uninstall | `./scripts/install-bulk-watchdog.sh --uninstall` |
+| Intentional stop (keep agent) | `touch ~/Library/Logs/ford-bulk-watchdog.pause` |
+| Resume auto-restart | `rm -f ~/Library/Logs/ford-bulk-watchdog.pause` |
+| Logs | `~/Library/Logs/ford-bulk-watchdog.log` (and `logs/watchdog.log` when script runs with Documents access) |
+
+Blessed **manual** start remains `./scripts/start-bulk-in-terminal.sh`. Re-run install after changing the installer/launcher template.
+
+**Subscription gate:** If the Ford PTS subscription is inactive, keep the pause file present and do **not** start bulk/capture. Auto-restart must stay disabled until Tom renews and explicitly removes the pause / authorizes resume.

@@ -10,6 +10,7 @@
 - [2026-07-08_pipeline_runtime_observations.md](./2026-07-08_pipeline_runtime_observations.md) — live session evidence
 - [2026-07-08_codebase_foundation_context_assessment.md](./2026-07-08_codebase_foundation_context_assessment.md) — foundation scores & phases
 - [dev_guides/README.md](./dev_guides/README.md) — implementation blueprints (01–04.1 executed; 05–06 planned)
+- [2026-07-12_vehicle_library_program_pointer.md](./2026-07-12_vehicle_library_program_pointer.md) — post-capture process/unify + Mechanic RAG program (hub in second_brain)
 
 **Reliability bar:** Bulk + capture must run **unsupervised 4–12+ hours** without manual kill/restart. Guide 04.1 fixed orchestrator freeze; **REL-*** items below track remaining gaps.
 
@@ -167,6 +168,7 @@
 3. **E-Transit:** Skip tier-1, manual params, or alternate PTS navigation (RUN-06)?
 4. **Worker timeouts (04.2):** Defaults `WORKER_LOG_STALE_MS=20m`, `WORKER_MAX_RUNTIME_MS=4h` — see 04.2 pass 2
 5. ~~**Guide 05 vs 04.2 order**~~ → **04.2 first** (unsupervised bulk P0); 05 after capture stopped
+6. **Post-capture process/unify (program):** When to start turning capture-complete vehicles into unified service/wiring/connectors packages for Mechanic RAG? See [vehicle library pointer](./2026-07-12_vehicle_library_program_pointer.md). Does **not** block active bulk unless Tom schedules a stop.
 
 ---
 
@@ -174,6 +176,7 @@
 
 | Date | Update |
 |------|--------|
+| 2026-07-12 | Linked vehicle library / Mechanic RAG program pointer (process/unify pending; hub in second_brain) |
 | 2026-07-10 21:55 | Guide 04.3 executed — REL-08 resolved; per-vehicle auth cooldown, stream guard, wiring gap accounting |
 | 2026-07-09 12:06 | Fifth-pass audit; `2024-bronco` OK; 21 verified; docs + tsconfig commit |
 | 2026-07-09 11:55 | Third-pass audit; Guide 04.3 plan; backlog sync; CODE-12 emit artifacts |

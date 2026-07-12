@@ -3,13 +3,16 @@
 **Date:** 2026-07-12  
 **Status:** Pointer only (ops SSOT remains this repo’s `docs/reference/` + PIPELINE_OPS)
 
-This repo owns **Ford PTS capture** (queue, params, bulk download, gaps). Capture for the current fleet is largely done; **processing / unification into per-vehicle service, wiring, and connectors packages is still pending**.
+This repo owns **Ford PTS capture** (queue, params, bulk download, gaps). Capture for the current fleet is largely done; **processing / unification** into per-vehicle service, wiring, and connectors packages is **still pending**.
 
-**Program hub (SSOT for cross-repo intent):**  
+**Program hub (SSOT):**  
 `second_brain/docs/2026-07-12_vehicle_docs_library_and_mechanic_rag_program.md`
 
-**Consumer (RAG product, public fixtures):** `mechainic_rag` — does **not** run bulk capture.
+**Also in that hub:**
+- Dual use cases: **Google Drive PDF delivery** for Tom’s diesel-mechanic friend + **RAG packages** for Mechanic
+- Multi-source future: other OEM/third-party **adapter repos** + shared catalog contract (do not fork inventory logic ad hoc)
+- Backlog: `VEH-SRC-NEXT-001` next extraction source (**name/URL TBD** — do not build now)
 
-**Design expectation:** Fleet and non-Ford sources will grow for years. Keep capture status (this repo’s queue state machine) distinct from future **process** and **RAG-index** status planes documented in the hub SSOT.
+**Consumer (RAG):** `mechainic_rag` — fixtures publicly; private Gold packages later.
 
-Do not implement process/unify in a casual drive-by during active bulk unless Tom authorizes a dedicated stage.
+Do not implement process/unify or Drive upload in a drive-by during active bulk unless Tom authorizes a dedicated stage.
